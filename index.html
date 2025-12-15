@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#111827" />
+  <title>Kickoff Gaming Lounge — Game Hub</title>
+  <meta name="description" content="Browse games, watch clips, and join the session queue at Kickoff Gaming Lounge." />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">K</div>
+      <div class="brand-text">
+        <div class="brand-name">Kickoff Gaming Lounge</div>
+        <div class="brand-sub">Scan • Browse • Watch • Book</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <button class="nav-btn" data-view="games" id="navGames">🎮 Games</button>
+      <button class="nav-btn" data-view="appointments" id="navAppointments">📅 Appointments</button>
+      <button class="nav-btn" data-view="featured" id="navFeatured">⭐ Featured</button>
+    </nav>
+  </header>
+
+  <main class="main">
+    <section class="panel" id="statusPanel" role="status" aria-live="polite">
+      <div class="status-left">
+        <span class="pill" id="dataPill">Loading…</span>
+        <span class="status-text" id="statusText">Fetching the latest game list.</span>
+      </div>
+      <div class="status-right">
+        <button class="ghost" id="refreshBtn" title="Refresh">↻ Refresh</button>
+      </div>
+    </section>
+
+    <!-- Games -->
+    <section class="view" id="viewGames" hidden>
+      <div class="controls">
+        <input type="search" id="searchInput" placeholder="Search games (e.g., FIFA, Tekken, Mario)"
+               autocomplete="off" />
+        <select id="platformFilter">
+          <option value="">All platforms</option>
+        </select>
+        <select id="genreFilter">
+          <option value="">All genres</option>
+        </select>
+      </div>
+
+      <div class="grid" id="gamesGrid" aria-live="polite"></div>
+    </section>
+
+    <!-- Appointments -->
+    <section class="view" id="viewAppointments" hidden>
+      <div class="card">
+        <h2>Join the Session Queue</h2>
+        <p class="muted">
+          Tap below to generate a simple queue slip. Show it to staff at the counter to get assigned a station.
+          (Phase 1: staff confirms station & time at POS.)
+        </p>
+
+        <div class="queue-actions">
+          <button class="primary" id="joinQueueBtn">Join Next Available Session</button>
+          <button class="secondary" id="bookBtn">Reserve a Time (Coming Soon)</button>
+        </div>
+
+        <div class="queue-slip" id="queueSlip" hidden>
+          <div class="slip-row">
+            <div>
+              <div class="slip-title">Queue Slip</div>
+              <div class="slip-sub" id="slipTimestamp"></div>
+            </div>
+            <div class="slip-code" id="slipCode"></div>
+          </div>
+          <div class="slip-note">
+            Show this to staff. Your session will be assigned based on availability.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Station Status (Optional)</h3>
+        <p class="muted">
+          If you maintain station info, it will show here. Otherwise this section stays hidden.
+        </p>
+        <div id="stationsWrap" hidden>
+          <div class="stations" id="stationsList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Featured -->
+    <section class="view" id="viewFeatured" hidden>
+      <div class="card">
+        <h2>Featured Games</h2>
+        <p class="muted">These are highlighted by staff. Update the Google Sheet column <b>featured</b> to Yes/No.</p>
+      </div>
+      <div class="grid" id="featuredGrid"></div>
+    </section>
+  </main>
+
+  <!-- Trailer Modal -->
+  <div class="modal" id="trailerModal" aria-hidden="true">
+    <div class="modal-backdrop" id="modalBackdrop"></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-label="Game trailer">
+      <div class="modal-header">
+        <div class="modal-title" id="modalTitle">Trailer</div>
+        <button class="ghost" id="closeModalBtn" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="video-wrap" id="videoWrap"></div>
+        <div class="modal-meta" id="modalMeta"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <span class="muted">© <span id="year"></span> Kickoff Gaming Lounge</span>
+    <span class="muted">•</span>
+    <a class="muted link" href="#" id="aboutLink">About</a>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>
