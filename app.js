@@ -4,7 +4,6 @@
 const CONFIG = {
   sheetId: "13rkxqr7sohPeexiygv0dBMFV63ElDb2J",
   gamesGid: "528392995",
-  // stationsGid: "0", // optional if you later add a Stations tab gid
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -51,7 +50,6 @@ function setStatus(pillText, statusText, kind="info") {
   pill.textContent = pillText;
   txt.textContent = statusText;
 
-  // brand-only: green/gold/white
   const styles = {
     ok:   { bg: "rgba(0,255,136,.10)", border: "rgba(0,255,136,.28)", fg: "rgba(0,255,136,.95)" },
     warn: { bg: "rgba(201,162,39,.10)", border: "rgba(201,162,39,.28)", fg: "rgba(201,162,39,.95)" },
@@ -109,7 +107,10 @@ function setView(name) {
 }
 
 function renderFilters() {
-  const platforms = uniqSorted(GAMES.map(g => safeText(g.platform)));
+  // Optional improvement: split multi-platform cells into separate filter options
+  const platforms = uniqSorted(
+    GAMES.flatMap(g => safeText(g.platform).split(/,|\/|\||•/g).map(x => x.trim())).filter(Boolean)
+  );
   const genres = uniqSorted(GAMES.map(g => safeText(g.genre)));
 
   const pf = $("#platformFilter");
@@ -133,7 +134,6 @@ function gameCard(game) {
   const thumb = safeText(game.thumbnail_url);
   const hasTrailer = !!youtubeIdFromUrl(game.trailer_url);
 
-  // Split multiple platforms into badges
   const platforms = platformRaw
     ? platformRaw.split(/,|\/|\||•/g).map(p => p.trim()).filter(Boolean)
     : [];
@@ -154,13 +154,9 @@ function gameCard(game) {
         }
       </div>
 
-      <!-- INFO SECTION (beneath image) -->
       <div class="game-info">
         <div class="game-title">${title}</div>
-
-        <div class="badges">
-          ${badges}
-        </div>
+        <div class="badges">${badges}</div>
 
         <div class="game-actions">
           <button class="secondary" data-action="trailer"
@@ -177,21 +173,31 @@ function gameCard(game) {
   `;
 }
 
+function matchesPlatform(gamePlatformCell, selected) {
+  if (!selected) return true;
+  const parts = safeText(gamePlatformCell)
+    .split(/,|\/|\||•/g)
+    .map(p => p.trim().toLowerCase())
+    .filter(Boolean);
+  return parts.includes(selected.toLowerCase());
+}
 
 function renderGames() {
   const q = safeText($("#searchInput").value).toLowerCase();
-  const pf = safeText($("#platformFilter").value).toLowerCase();
+  const pf = safeText($("#platformFilter").value);
   const gf = safeText($("#genreFilter").value).toLowerCase();
 
   const filtered = GAMES.filter(g => {
     if (!isActiveRow(g)) return false;
+
     const title = safeText(g.title).toLowerCase();
-    const platform = safeText(g.platform).toLowerCase();
+    const platform = safeText(g.platform);
     const genre = safeText(g.genre).toLowerCase();
 
-    const matchesQ = !q || title.includes(q) || platform.includes(q) || genre.includes(q);
-    const matchesP = !pf || platform === pf;
+    const matchesQ = !q || title.includes(q) || platform.toLowerCase().includes(q) || genre.includes(q);
+    const matchesP = matchesPlatform(platform, pf);
     const matchesG = !gf || genre === gf;
+
     return matchesQ && matchesP && matchesG;
   });
 
@@ -219,7 +225,6 @@ async function refreshData() {
     const gviz = parseGvizJson(text);
     const rows = gvizToObjects(gviz);
 
-    // Map headers (your sheet headers look like these) :contentReference[oaicite:2]{index=2}
     GAMES = rows.map(r => ({
       game_id: safeText(r.game_id || r.id || r["Game ID"]),
       title: safeText(r.title || r.game || r["Game Title"]),
@@ -245,6 +250,14 @@ async function refreshData() {
   }
 }
 
+function closeModal() {
+  const modal = $("#trailerModal");
+  if (!modal) return;
+  modal.classList.remove("show");
+  modal.setAttribute("aria-hidden", "true");
+  $("#videoWrap").innerHTML = "";
+}
+
 function wireEvents() {
   $("#year").textContent = new Date().getFullYear();
 
@@ -263,7 +276,7 @@ function wireEvents() {
 
     if (btn.dataset.action === "book") {
       setView("appointments");
-      $("#joinQueueBtn").focus();
+      $("#joinQueueBtn")?.focus();
       if (btn.dataset.title) {
         $("#statusText").textContent = `Selected: ${safeText(btn.dataset.title)} (tell staff when checking in).`;
       }
@@ -273,30 +286,27 @@ function wireEvents() {
       const id = safeText(btn.dataset.id);
       const game = GAMES.find(g => safeText(g.game_id) === id) || GAMES.find(g => safeText(g.title) === id);
       if (!game) return;
+
       const vid = youtubeIdFromUrl(game.trailer_url);
       if (!vid) return;
 
       $("#modalTitle").textContent = `${safeText(game.title)} — Trailer`;
       $("#modalMeta").textContent = `${safeText(game.platform)}${game.genre ? " • " + safeText(game.genre) : ""}`;
-      $("#videoWrap").innerHTML = `<iframe src="https://www.youtube.com/embed/${vid}?autoplay=1&mute=1&rel=0&modestbranding=1" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
-      $("#trailerModal").classList.add("show");
-      $("#trailerModal").setAttribute("aria-hidden", "false");
+      $("#videoWrap").innerHTML =
+        `<iframe src="https://www.youtube.com/embed/${vid}?autoplay=1&mute=1&rel=0&modestbranding=1"
+          allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
+
+      const modal = $("#trailerModal");
+      modal.classList.add("show");
+      modal.setAttribute("aria-hidden", "false");
     }
   });
 
-  $("#modalBackdrop").addEventListener("click", () => {
-    $("#trailerModal").classList.remove("show");
-    $("#trailerModal").setAttribute("aria-hidden", "true");
-    $("#videoWrap").innerHTML = "";
-  });
+  $("#modalBackdrop")?.addEventListener("click", closeModal);
+  $("#closeModalBtn")?.addEventListener("click", closeModal);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 
-  $("#closeModalBtn").addEventListener("click", () => {
-    $("#trailerModal").classList.remove("show");
-    $("#trailerModal").setAttribute("aria-hidden", "true");
-    $("#videoWrap").innerHTML = "";
-  });
-
-  $("#joinQueueBtn").addEventListener("click", () => {
+  $("#joinQueueBtn")?.addEventListener("click", () => {
     const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
     const nums = "23456789";
     const pick = (set) => set[Math.floor(Math.random()*set.length)];
@@ -307,11 +317,11 @@ function wireEvents() {
     $("#queueSlip").hidden = false;
   });
 
-  $("#bookBtn").addEventListener("click", () => {
+  $("#bookBtn")?.addEventListener("click", () => {
     alert("Reserve-a-time is coming soon. For now, join the queue and staff will assign a station.");
   });
 
-  $("#aboutLink").addEventListener("click", (e) => {
+  $("#aboutLink")?.addEventListener("click", (e) => {
     e.preventDefault();
     alert("Kickoff Game Hub: Browse games, watch clips, and join the queue. Updates are managed in a Google Sheet.");
   });
