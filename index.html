@@ -88,3 +88,86 @@
         <div class="filters">
           <div class="field">
             <label for="searchInput">Search</label>
+            <input id="searchInput" type="text" placeholder="Search title, platform, genre…" />
+          </div>
+
+          <div class="field">
+            <label for="platformFilter">Platform</label>
+            <select id="platformFilter">
+              <option value="">All platforms</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="genreFilter">Genre</label>
+            <select id="genreFilter">
+              <option value="">All genres</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div id="stationsWrap" class="stations" hidden>
+        <div class="stations__title">Stations</div>
+        <div id="stationsList" class="stations__list"></div>
+      </div>
+
+      <div id="gamesGrid" class="grid"></div>
+    </section>
+
+    <!-- FEATURED VIEW -->
+    <section id="viewFeatured" hidden>
+      <div class="panelHead">
+        <h2 class="panelHead__title">Featured Games</h2>
+        <div class="muted">Controlled by the <b>featured</b> column in your sheet.</div>
+      </div>
+      <div id="featuredGrid" class="grid"></div>
+    </section>
+
+    <!-- APPOINTMENTS / QUEUE VIEW -->
+    <section id="viewAppointments" hidden>
+      <div class="panelHead">
+        <h2 class="panelHead__title">Join the Queue</h2>
+        <div class="muted">Staff will assign a station when it’s your turn.</div>
+      </div>
+
+      <div class="queueWrap">
+        <button id="joinQueueBtn" class="btn btn--primary" type="button">Generate Queue Slip</button>
+        <button id="bookBtn" class="btn btn--secondary" type="button">Reserve a Time (Soon)</button>
+
+        <div id="queueSlip" class="slip" hidden>
+          <div class="slip__label">Your Queue Code</div>
+          <div id="slipCode" class="slip__code">—</div>
+          <div id="slipTimestamp" class="slip__time muted">—</div>
+          <div class="muted">Show this code to the front desk.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="footer__line"></div>
+      <div class="footer__text">
+        © <span id="year"></span> Kickoff Gaming Lounge — Ghana • <span class="footer__tag">Where Competition Meets Atmosphere</span>
+      </div>
+    </footer>
+  </main>
+
+  <!-- Trailer Modal -->
+  <div id="trailerModal" class="modal" aria-hidden="true">
+    <div id="modalBackdrop" class="modal__backdrop"></div>
+    <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal__head">
+        <div>
+          <div id="modalTitle" class="modal__title">Trailer</div>
+          <div id="modalMeta" class="modal__meta"></div>
+        </div>
+        <button id="closeModalBtn" class="btn btn--ghost" type="button">Close</button>
+      </div>
+      <div id="videoWrap" class="modal__video"></div>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
