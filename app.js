@@ -1,10 +1,11 @@
 // Kickoff Game Hub
-// Data source: Google Sheets (published) via Google Visualization API
+// Data source: Google Sheets via Google Visualization API (GViz)
 
 const CONFIG = {
   sheetId: "13rkxqr7sohPeexiygv0dBMFV63ElDb2J",
-  gamesTabName: "Games",
+  gamesTabName: "Games",       // MUST match your Google Sheet tab name exactly
   stationsTabName: "Stations", // optional
+  fallbackGid: "0",            // fallback if sheet name fails (usually 0 = first tab)
 };
 
 // ---------- Utilities ----------
@@ -19,22 +20,19 @@ function setStatus(pillText, statusText, kind="info") {
   pill.textContent = pillText;
   txt.textContent = statusText;
 
-  // Kickoff brand-only colors (green/gold)
+  // Kickoff brand-only (green/gold/white)
   const styles = {
     ok:   { bg: "rgba(0,255,136,.10)", border: "rgba(0,255,136,.28)", fg: "rgba(0,255,136,.95)" },
     warn: { bg: "rgba(201,162,39,.10)", border: "rgba(201,162,39,.28)", fg: "rgba(201,162,39,.95)" },
     info: { bg: "rgba(245,247,250,.06)", border: "rgba(245,247,250,.18)", fg: "rgba(245,247,250,.85)" },
   };
-
   const s = styles[kind] || styles.info;
   pill.style.background = s.bg;
   pill.style.borderColor = s.border;
   pill.style.color = s.fg;
 }
 
-function safeText(v) {
-  return (v ?? "").toString().trim();
-}
+function safeText(v) { return (v ?? "").toString().trim(); }
 
 function normalizeYesNo(v) {
   const s = safeText(v).toLowerCase();
@@ -47,39 +45,65 @@ function isActiveRow(row) {
 }
 
 function uniqSorted(arr) {
-  return Array.from(new Set(arr.filter(Boolean))).sort((a,b) => a.localeCompare(b));
+  return Array.from(new Set(arr.filter(Boolean))).sort((a,b)=>a.localeCompare(b));
 }
 
 function youtubeIdFromUrl(url) {
   const u = safeText(url);
   if (!u) return "";
 
-  // FIXED: youtu.be/<id>
+  // FIX: youtu.be/<id>
   const m1 = u.match(/youtu\.be\/([A-Za-z0-9_-]{6,})/);
-  if (m1 && m1[1]) return m1[1];
+  if (m1?.[1]) return m1[1];
 
   // youtube.com/watch?v=<id>
   const m2 = u.match(/[?&]v=([A-Za-z0-9_-]{6,})/);
-  if (m2 && m2[1]) return m2[1];
+  if (m2?.[1]) return m2[1];
 
   // youtube.com/embed/<id>
   const m3 = u.match(/\/embed\/([A-Za-z0-9_-]{6,})/);
-  if (m3 && m3[1]) return m3[1];
+  if (m3?.[1]) return m3[1];
 
-  // If user pasted just an ID
-  if (/^[A-Za-z0-9_-]{6,}$/.test(u)) return u;
-
+  if (/^[A-Za-z0-9_-]{6,}$/.test(u)) return u; // pasted ID
   return "";
 }
 
-function buildGvizUrl(tabName) {
+function escapeHtml(s) {
+  return safeText(s)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+function buildGvizUrlBySheet(tabName) {
   const tq = encodeURIComponent("select *");
   return `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(tabName)}&tq=${tq}`;
 }
 
+function buildGvizUrlByGid(gid) {
+  const tq = encodeURIComponent("select *");
+  return `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/gviz/tq?tqx=out:json&gid=${encodeURIComponent(gid)}&tq=${tq}`;
+}
+
 function parseGvizJson(text) {
-  const match = text.match(/setResponse\((.*)\);\s*$/s);
-  if (!match) throw new Error("Unexpected Google Sheets response. Make sure the sheet is published or shared.");
+  // If Google returns an HTML login/permission page, detect it
+  const head = text.slice(0, 300).toLowerCase();
+  if (head.includes("<!doctype html") || head.includes("<html")) {
+    throw new Error(
+      "Google returned HTML instead of GViz JSON. This usually means the Sheet is NOT published/public. " +
+      "Fix: Google Sheets → File → Share → Publish to web (or Share: Anyone with link = Viewer)."
+    );
+  }
+
+  // Typical response: google.visualization.Query.setResponse({...});
+  const match = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*?)\);\s*$/);
+  if (!match) {
+    // show a small snippet for diagnosis
+    const snippet = text.slice(0, 220).replace(/\s+/g, " ");
+    throw new Error("Unexpected GViz response format. Snippet: " + snippet);
+  }
   return JSON.parse(match[1]);
 }
 
@@ -128,15 +152,6 @@ function setView(name) {
   if (name === "featured") $("#navFeatured").classList.add("active");
 }
 
-function escapeHtml(s) {
-  return safeText(s)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-
 function renderFilters() {
   const platforms = uniqSorted(GAMES.map(g => safeText(g.platform)));
   const genres = uniqSorted(GAMES.map(g => safeText(g.genre)));
@@ -170,7 +185,7 @@ function gameCard(game) {
 
   const thumbHtml = thumb
     ? `<img src="${escapeHtml(thumb)}" alt="${title} cover" loading="lazy" />`
-    : `<div style="padding:10px; text-align:center; font-weight:900;">${title}</div>`;
+    : `<div style="padding:10px; text-align:center; font-weight:700;">${title}</div>`;
 
   return `
     <article class="game">
@@ -208,7 +223,7 @@ function renderGames() {
 
   const grid = $("#gamesGrid");
   if (!filtered.length) {
-    grid.innerHTML = `<div class="station"><b>No games found.</b><div class="muted">Try clearing filters or searching a different keyword.</div></div>`;
+    grid.innerHTML = `<div class="card"><b>No games found.</b><div class="muted">Try clearing filters or searching a different keyword.</div></div>`;
     return;
   }
   grid.innerHTML = filtered.map(gameCard).join("");
@@ -218,7 +233,7 @@ function renderFeatured() {
   const featured = GAMES.filter(g => isActiveRow(g) && normalizeYesNo(g.featured));
   const grid = $("#featuredGrid");
   if (!featured.length) {
-    grid.innerHTML = `<div class="station"><b>No featured games right now.</b><div class="muted">Set <b>featured</b> to Yes in your sheet.</div></div>`;
+    grid.innerHTML = `<div class="card"><b>No featured games right now.</b><div class="muted">Set <b>featured</b> to Yes in your sheet.</div></div>`;
     return;
   }
   grid.innerHTML = featured.map(gameCard).join("");
@@ -236,3 +251,185 @@ function renderStations() {
   list.innerHTML = STATIONS.map(s => {
     const name = escapeHtml(s.station_name || s.station || "Station");
     const status = escapeHtml(s.status || "Unknown");
+    const note = escapeHtml(s.note || "");
+    return `
+      <div class="station">
+        <div class="station-top">
+          <div class="station-name">${name}</div>
+          <div class="station-status">${status}</div>
+        </div>
+        ${note ? `<div class="muted" style="margin-top:6px">${note}</div>` : ""}
+      </div>
+    `;
+  }).join("");
+}
+
+// ---------- Modal ----------
+function openTrailer(game) {
+  const id = youtubeIdFromUrl(game.trailer_url);
+  if (!id) return;
+
+  $("#modalTitle").textContent = `${safeText(game.title)} — Trailer`;
+  $("#modalMeta").textContent = `${safeText(game.platform)}${game.genre ? " • " + safeText(game.genre) : ""}`;
+
+  $("#videoWrap").innerHTML = `
+    <iframe
+      src="https://www.youtube.com/embed/${id}?autoplay=1&mute=1&rel=0&modestbranding=1"
+      title="YouTube video player"
+      allow="autoplay; encrypted-media; picture-in-picture"
+      allowfullscreen></iframe>
+  `;
+
+  $("#trailerModal").classList.add("show");
+  $("#trailerModal").setAttribute("aria-hidden", "false");
+}
+
+function closeModal() {
+  $("#trailerModal").classList.remove("show");
+  $("#trailerModal").setAttribute("aria-hidden", "true");
+  $("#videoWrap").innerHTML = "";
+}
+
+// ---------- Data Loading ----------
+async function loadTabByUrl(url) {
+  const res = await fetch(url, { cache: "no-store" });
+  const text = await res.text();
+  const gviz = parseGvizJson(text);
+  return gvizToObjects(gviz);
+}
+
+async function loadGames() {
+  // Try by sheet name first, then fallback by gid
+  try {
+    return await loadTabByUrl(buildGvizUrlBySheet(CONFIG.gamesTabName));
+  } catch (e1) {
+    console.warn("Load by sheet name failed:", e1.message);
+    return await loadTabByUrl(buildGvizUrlByGid(CONFIG.fallbackGid));
+  }
+}
+
+async function refreshData() {
+  setStatus("Loading…", "Fetching the latest game list.", "info");
+
+  try {
+    const rows = await loadGames();
+
+    const mapped = rows.map(r => ({
+      game_id: safeText(r.game_id || r.id || r["game id"] || r["Game ID"]),
+      title: safeText(r.title || r.game || r["Game Title"] || r["title"]),
+      platform: safeText(r.platform || r.console || r["Platform"]),
+      genre: safeText(r.genre || r["Genre"]),
+      trailer_url: safeText(r.trailer_url || r.trailer || r["Trailer URL"]),
+      thumbnail_url: safeText(r.thumbnail_url || r.thumbnail || r["Thumbnail URL"]),
+      station: safeText(r.station || r["Station"]),
+      status: safeText(r.status || r["Status"]),
+      featured: safeText(r.featured || r["Featured"]),
+    }));
+
+    GAMES = mapped;
+
+    // Stations optional
+    try {
+      const srows = await loadTabByUrl(buildGvizUrlBySheet(CONFIG.stationsTabName));
+      STATIONS = srows.map(r => ({
+        station_name: safeText(r.station_name || r.station || r["Station Name"]),
+        status: safeText(r.status || r["Status"]),
+        note: safeText(r.note || r["Note"]),
+      })).filter(s => safeText(s.station_name));
+    } catch {
+      STATIONS = [];
+    }
+
+    renderFilters();
+    renderGames();
+    renderFeatured();
+    renderStations();
+
+    const activeCount = mapped.filter(isActiveRow).length;
+
+    // Validation (soft)
+    const bad = [];
+    mapped.forEach((g, i) => {
+      const probs = validateGameRow(g);
+      if (probs.length) bad.push({ row: i+2, probs, title: g.title || "(blank)" });
+    });
+
+    const warnMsg = bad.length ? ` • ${bad.length} row(s) need attention` : "";
+    setStatus(`Loaded ${activeCount} active`, `Game list updated.${warnMsg}`, bad.length ? "warn" : "ok");
+
+    if (bad.length) console.warn("Validation warnings:", bad);
+
+  } catch (err) {
+    console.error(err);
+    setStatus(
+      "Error",
+      err.message || "Could not load data. Ensure your sheet is published/public and tab names match.",
+      "warn"
+    );
+  }
+}
+
+// ---------- Events ----------
+function wireEvents() {
+  $("#year").textContent = new Date().getFullYear();
+
+  $$("#navGames, #navAppointments, #navFeatured").forEach(btn => {
+    btn.addEventListener("click", () => setView(btn.dataset.view));
+  });
+
+  $("#refreshBtn").addEventListener("click", refreshData);
+  $("#searchInput").addEventListener("input", renderGames);
+  $("#platformFilter").addEventListener("change", renderGames);
+  $("#genreFilter").addEventListener("change", renderGames);
+
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+
+    const action = btn.dataset.action;
+
+    if (action === "trailer") {
+      const id = safeText(btn.dataset.id);
+      const game =
+        GAMES.find(g => safeText(g.game_id) === id) ||
+        GAMES.find(g => safeText(g.title) === id);
+      if (game) openTrailer(game);
+    }
+
+    if (action === "book") {
+      setView("appointments");
+      $("#joinQueueBtn").focus();
+      if (btn.dataset.title) {
+        $("#statusText").textContent = `Selected: ${safeText(btn.dataset.title)} (tell staff when checking in).`;
+      }
+    }
+  });
+
+  $("#modalBackdrop").addEventListener("click", closeModal);
+  $("#closeModalBtn").addEventListener("click", closeModal);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeModal();
+  });
+
+  $("#joinQueueBtn").addEventListener("click", () => {
+    const code = makeQueueCode();
+    const now = new Date();
+    $("#slipCode").textContent = code;
+    $("#slipTimestamp").textContent = now.toLocaleString();
+    $("#queueSlip").hidden = false;
+  });
+
+  $("#bookBtn").addEventListener("click", () => {
+    alert("Reserve-a-time is coming soon. For now, join the queue and staff will assign a station.");
+  });
+
+  $("#aboutLink").addEventListener("click", (e) => {
+    e.preventDefault();
+    alert("Kickoff Game Hub: Browse games, watch clips, and join the queue. Updates are managed in a Google Sheet.");
+  });
+}
+
+// ---------- Start ----------
+wireEvents();
+setView("games");
+refreshData();
