@@ -127,36 +127,56 @@ function renderFilters() {
 
 function gameCard(game) {
   const title = escapeHtml(game.title);
-  const platform = escapeHtml(game.platform);
+  const platformRaw = safeText(game.platform);
   const genre = escapeHtml(game.genre);
   const station = escapeHtml(game.station);
   const thumb = safeText(game.thumbnail_url);
   const hasTrailer = !!youtubeIdFromUrl(game.trailer_url);
 
-  const badges = [
-    platform ? `<span class="badge accent">${platform}</span>` : "",
-    genre ? `<span class="badge">${genre}</span>` : "",
-    station ? `<span class="badge">Station: ${station}</span>` : "",
-  ].filter(Boolean).join("");
+  // Split multiple platforms into badges
+  const platforms = platformRaw
+    ? platformRaw.split(/,|\/|\||•/g).map(p => p.trim()).filter(Boolean)
+    : [];
 
-  const thumbHtml = thumb
-    ? `<img src="${escapeHtml(thumb)}" alt="${title} cover" loading="lazy" />`
-    : `<div style="padding:10px;text-align:center;font-weight:700;">${title}</div>`;
+  const badges = [
+    ...platforms.map(p => `<span class="badge accent">${escapeHtml(p)}</span>`),
+    genre ? `<span class="badge">${genre}</span>` : "",
+    station ? `<span class="badge">Station: ${station}</span>` : ""
+  ].filter(Boolean).join("");
 
   return `
     <article class="game">
-      <div class="game-thumb">${thumbHtml}</div>
-      <div class="game-body">
+      <div class="game-thumb">
+        ${
+          thumb
+            ? `<img src="${escapeHtml(thumb)}" alt="${title} cover" loading="lazy" />`
+            : `<div class="thumb-fallback">${title}</div>`
+        }
+      </div>
+
+      <!-- INFO SECTION (beneath image) -->
+      <div class="game-info">
         <div class="game-title">${title}</div>
-        <div class="badges">${badges}</div>
+
+        <div class="badges">
+          ${badges}
+        </div>
+
         <div class="game-actions">
-          <button class="secondary" data-action="trailer" data-id="${escapeHtml(game.game_id || title)}" ${hasTrailer ? "" : "disabled"}>🎬 Watch Clip</button>
-          <button class="primary" data-action="book" data-title="${title}">📅 Book</button>
+          <button class="secondary" data-action="trailer"
+                  data-id="${escapeHtml(game.game_id || title)}"
+                  ${hasTrailer ? "" : "disabled"}>
+            🎬 Watch Clip
+          </button>
+          <button class="primary" data-action="book" data-title="${title}">
+            📅 Book
+          </button>
         </div>
       </div>
     </article>
   `;
 }
+
 
 function renderGames() {
   const q = safeText($("#searchInput").value).toLowerCase();
