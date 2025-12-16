@@ -1,132 +1,90 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Kickoff Gaming Lounge — Game List</title>
-  <meta name="description" content="Kickoff Gaming Lounge - Where Competition Meets Atmosphere. Browse available games by console." />
+  <title>Kickoff Gaming Lounge — Game Hub</title>
+  <meta name="description" content="Kickoff Gaming Lounge Ghana — Where Competition Meets Atmosphere. Browse games, watch clips, join queue." />
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <!-- Brand fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Bebas+Neue&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Bebas+Neue&display=swap" rel="stylesheet">
+
+  <!-- IMPORTANT: keep this exact path -->
+  <link rel="stylesheet" href="./style.css" />
 </head>
 
 <body>
-  <!-- Top Nav -->
+  <!-- Top Bar -->
   <header class="topbar">
     <div class="container topbar__inner">
       <div class="brand">
-        <!-- Replace src with your final logo file path (e.g., /assets/logo.png) -->
-        <div class="brand__mark" aria-hidden="true">
-          <span class="brand__k">K</span>
+        <!-- Put your final logo file at /assets/logo.png and this will show -->
+        <div class="brand__logoWrap">
+          <img class="brand__logo" src="./assets/logo.png" alt="Kickoff Gaming Lounge logo"
+               onerror="this.style.display='none';document.getElementById('fallbackMark').style.display='grid';" />
+          <div id="fallbackMark" class="brand__mark" aria-hidden="true" style="display:none;">
+            <span class="brand__k">K</span>
+          </div>
         </div>
+
         <div class="brand__text">
           <div class="brand__name">KICKOFF</div>
-          <div class="brand__sub">GAMING LOUNGE</div>
+          <div class="brand__sub">GAMING LOUNGE • GHANA</div>
         </div>
       </div>
 
       <div class="topbar__right">
         <span class="tagline">Where Competition Meets Atmosphere</span>
+        <button id="refreshBtn" class="btn btn--ghost" type="button">Refresh</button>
       </div>
     </div>
   </header>
 
-  <!-- Hero -->
+  <!-- Hero / Status -->
   <section class="hero">
     <div class="container hero__inner">
-      <div class="hero__left">
-        <h1 class="hero__title">Game Library</h1>
+      <div>
+        <h1 class="hero__title">Kickoff Game Hub</h1>
         <p class="hero__desc">
-          Search and filter by console. Updated live on-site.
+          Browse games, watch clips, and join the queue. Updates come directly from your Google Sheet.
         </p>
 
-        <div class="controls">
-          <div class="control">
-            <label for="search" class="control__label">Search</label>
-            <input id="search" class="control__input" type="text" placeholder="Search games (e.g., FIFA, COD, Mortal Kombat)..." />
-          </div>
-
-          <div class="control">
-            <label for="platform" class="control__label">Console</label>
-            <select id="platform" class="control__select">
-              <option value="ALL">All Consoles</option>
-              <option value="XBOX ONE">Xbox One</option>
-              <option value="XBOX Series S">Xbox Series S</option>
-              <option value="PS5">PS5</option>
-            </select>
-          </div>
-
-          <div class="control">
-            <label for="sort" class="control__label">Sort</label>
-            <select id="sort" class="control__select">
-              <option value="AZ">A → Z</option>
-              <option value="ZA">Z → A</option>
-              <option value="PLATFORM">By Console</option>
-            </select>
-          </div>
+        <div class="statusRow">
+          <span id="dataPill" class="pill">Loading…</span>
+          <span id="statusText" class="statusText">Fetching the latest game list.</span>
+          <a id="aboutLink" class="aboutLink" href="#">About</a>
         </div>
 
-        <div class="stats">
-          <div class="stat">
-            <div class="stat__label">Total Games</div>
-            <div class="stat__value" id="totalGames">—</div>
-          </div>
-          <div class="stat">
-            <div class="stat__label">Showing</div>
-            <div class="stat__value" id="showingGames">—</div>
-          </div>
-        </div>
+        <nav class="nav">
+          <button id="navGames" class="nav__btn active" data-view="games" type="button">Games</button>
+          <button id="navFeatured" class="nav__btn" data-view="featured" type="button">Featured</button>
+          <button id="navAppointments" class="nav__btn" data-view="appointments" type="button">Queue</button>
+        </nav>
       </div>
 
-      <!-- Featured / Now Playing -->
-      <aside class="hero__right">
-        <div class="nowPlaying">
-          <div class="nowPlaying__badge">NOW PLAYING</div>
-          <div class="nowPlaying__frame">
-            <!-- You can swap this image anytime (or hide it) -->
-            <img id="featuredImage" class="nowPlaying__image"
-                 src="https://images.pexels.com/photos/7915285/pexels-photo-7915285.jpeg?auto=compress&cs=tinysrgb&w=1200"
-                 alt="Featured game artwork placeholder" />
+      <aside class="heroCard">
+        <div class="heroCard__title">Quick Actions</div>
+        <div class="heroCard__body">
+          <div class="quick">
+            <div class="quick__label">Tip</div>
+            <div class="quick__text">Set <b>featured</b> = Yes in your sheet to populate the Featured tab.</div>
           </div>
-          <div class="nowPlaying__meta">
-            <div class="nowPlaying__title" id="featuredTitle">Featured Game</div>
-            <div class="nowPlaying__sub" id="featuredPlatform">Tap a game card to feature it here.</div>
-          </div>
-        </div>
-
-        <div class="tipCard">
-          <div class="tipCard__title">Tip</div>
-          <div class="tipCard__text">
-            Click any game below to set it as the “Now Playing” feature.
+          <div class="quick">
+            <div class="quick__label">Sheets</div>
+            <div class="quick__text">Make sure your sheet is <b>published</b> or shared publicly for the website to read it.</div>
           </div>
         </div>
       </aside>
     </div>
   </section>
 
-  <!-- List -->
   <main class="container">
-    <div class="sectionHead">
-      <h2 class="sectionHead__title">Available Games</h2>
-      <div class="sectionHead__line"></div>
-    </div>
+    <!-- GAMES VIEW -->
+    <section id="viewGames">
+      <div class="panelHead">
+        <h2 class="panelHead__title">All Games</h2>
 
-    <div id="emptyState" class="emptyState hidden">
-      No games match your search. Try another keyword or choose “All Consoles”.
-    </div>
-
-    <div id="grid" class="grid"></div>
-
-    <footer class="footer">
-      <div class="footer__line"></div>
-      <div class="footer__text">
-        © <span id="year"></span> Kickoff Gaming Lounge — Ghana • <span class="footer__tag">Where Competition Meets Atmosphere</span>
-      </div>
-    </footer>
-  </main>
-
-  <script src="app.js"></script>
-</body>
-</html>
+        <div class="filters">
+          <div class="field">
+            <label for="searchInput">Search</label>
