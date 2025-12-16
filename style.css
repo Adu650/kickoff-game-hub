@@ -9,6 +9,20 @@
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
+.game-info{
+  padding:12px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  flex:1;
+}
+.thumb-fallback{
+  padding:12px;
+  text-align:center;
+  font-weight:800;
+  color: rgba(245,247,250,0.85);
+}
+
 /* Tile card */
 .game{
   display:flex;
