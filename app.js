@@ -1,275 +1,238 @@
-// Kickoff Gaming Lounge - Game List UI (Google Sheets source)
-// Brand: #0B0B0B (Black), #00FF88 (Green), #C9A227 (Gold), #F5F7FA (White)
+// Kickoff Game Hub
+// Data source: Google Sheets (published) via Google Visualization API
 
-// ====== YOUR SHEET SETTINGS ======
-const SHEET_ID = "13rkxqr7sohPeexiygv0dBMFV63ElDb2J";
-
-// If your games are on the FIRST tab, gid is usually 0.
-// If not, open the sheet in browser and look for: ...gid=123456789
-const GID = "0";
-
-// Google "gviz" endpoint can return CSV (works best when sheet is published or public)
-const SHEET_CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${GID}`;
-
-// Expected columns in your sheet (header row):
-// - title OR game OR name
-// - platform OR console
-// Optional:
-// - id
-// - featured_image (url)
-const REQUIRED_TITLE_KEYS = ["title", "game", "name"];
-const REQUIRED_PLATFORM_KEYS = ["platform", "console"];
-
-// ====== DOM ======
-const el = {
-  grid: document.getElementById("grid"),
-  search: document.getElementById("search"),
-  platform: document.getElementById("platform"),
-  sort: document.getElementById("sort"),
-  total: document.getElementById("totalGames"),
-  showing: document.getElementById("showingGames"),
-  empty: document.getElementById("emptyState"),
-  year: document.getElementById("year"),
-  featuredTitle: document.getElementById("featuredTitle"),
-  featuredPlatform: document.getElementById("featuredPlatform"),
-  featuredImage: document.getElementById("featuredImage"),
+const CONFIG = {
+  sheetId: "13rkxqr7sohPeexiygv0dBMFV63ElDb2J",
+  gamesTabName: "Games",
+  stationsTabName: "Stations", // optional
 };
 
-let GAMES = []; // <- populated from Google Sheets
+// ---------- Utilities ----------
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-function normalize(s) {
-  return (s || "").toLowerCase().trim();
+function setStatus(pillText, statusText, kind="info") {
+  const pill = $("#dataPill");
+  const txt = $("#statusText");
+  if (!pill || !txt) return;
+
+  pill.textContent = pillText;
+  txt.textContent = statusText;
+
+  // Kickoff brand-only colors (green/gold)
+  const styles = {
+    ok:   { bg: "rgba(0,255,136,.10)", border: "rgba(0,255,136,.28)", fg: "rgba(0,255,136,.95)" },
+    warn: { bg: "rgba(201,162,39,.10)", border: "rgba(201,162,39,.28)", fg: "rgba(201,162,39,.95)" },
+    info: { bg: "rgba(245,247,250,.06)", border: "rgba(245,247,250,.18)", fg: "rgba(245,247,250,.85)" },
+  };
+
+  const s = styles[kind] || styles.info;
+  pill.style.background = s.bg;
+  pill.style.borderColor = s.border;
+  pill.style.color = s.fg;
 }
 
-function escapeHtml(str) {
-  return String(str)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+function safeText(v) {
+  return (v ?? "").toString().trim();
 }
 
-function parseCSV(csvText) {
-  // Simple CSV parser (handles quoted commas)
-  const rows = [];
-  let row = [];
-  let cur = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < csvText.length; i++) {
-    const ch = csvText[i];
-    const next = csvText[i + 1];
-
-    if (ch === '"' && inQuotes && next === '"') {
-      cur += '"';
-      i++;
-      continue;
-    }
-    if (ch === '"') {
-      inQuotes = !inQuotes;
-      continue;
-    }
-    if (ch === "," && !inQuotes) {
-      row.push(cur);
-      cur = "";
-      continue;
-    }
-    if ((ch === "\n" || ch === "\r") && !inQuotes) {
-      if (cur.length || row.length) {
-        row.push(cur);
-        rows.push(row);
-      }
-      row = [];
-      cur = "";
-      continue;
-    }
-    cur += ch;
-  }
-
-  if (cur.length || row.length) {
-    row.push(cur);
-    rows.push(row);
-  }
-
-  // Remove empty trailing rows
-  return rows.filter(r => r.some(cell => String(cell).trim() !== ""));
+function normalizeYesNo(v) {
+  const s = safeText(v).toLowerCase();
+  return s === "yes" || s === "y" || s === "true" || s === "1";
 }
 
-function findHeaderIndex(headers, keys) {
-  const lower = headers.map(h => normalize(h));
-  for (const k of keys) {
-    const idx = lower.indexOf(k);
-    if (idx !== -1) return idx;
-  }
-  return -1;
+function isActiveRow(row) {
+  const status = safeText(row.status).toLowerCase();
+  return status === "" || status === "active" || status === "yes" || status === "true" || status === "1";
 }
 
-function splitPlatforms(value) {
-  // supports: "XBOX ONE, PS5" or "XBOX ONE / PS5" etc.
-  return String(value || "")
-    .split(/,|\/|\||•/g)
-    .map(s => s.trim())
-    .filter(Boolean);
+function uniqSorted(arr) {
+  return Array.from(new Set(arr.filter(Boolean))).sort((a,b) => a.localeCompare(b));
 }
 
-async function loadGamesFromSheet() {
-  const res = await fetch(SHEET_CSV_URL, { cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch sheet. HTTP ${res.status}. Make sure the sheet is Published to web or shared publicly.`);
-  }
+function youtubeIdFromUrl(url) {
+  const u = safeText(url);
+  if (!u) return "";
 
-  const csv = await res.text();
-  const rows = parseCSV(csv);
+  // FIXED: youtu.be/<id>
+  const m1 = u.match(/youtu\.be\/([A-Za-z0-9_-]{6,})/);
+  if (m1 && m1[1]) return m1[1];
 
-  if (rows.length < 2) {
-    throw new Error("Sheet has no data rows. Make sure there is a header row + at least one game row.");
-  }
+  // youtube.com/watch?v=<id>
+  const m2 = u.match(/[?&]v=([A-Za-z0-9_-]{6,})/);
+  if (m2 && m2[1]) return m2[1];
 
-  const headers = rows[0].map(h => String(h).trim());
-  const titleIdx = findHeaderIndex(headers, REQUIRED_TITLE_KEYS);
-  const platformIdx = findHeaderIndex(headers, REQUIRED_PLATFORM_KEYS);
+  // youtube.com/embed/<id>
+  const m3 = u.match(/\/embed\/([A-Za-z0-9_-]{6,})/);
+  if (m3 && m3[1]) return m3[1];
 
-  if (titleIdx === -1 || platformIdx === -1) {
-    throw new Error(
-      `Could not find required columns in sheet.\n` +
-      `Expected a header like: Title + Platform (or Game/Name + Console).\n` +
-      `Found headers: ${headers.join(", ")}`
-    );
-  }
+  // If user pasted just an ID
+  if (/^[A-Za-z0-9_-]{6,}$/.test(u)) return u;
 
-  // optional columns
-  const idIdx = findHeaderIndex(headers, ["id"]);
-  const imgIdx = findHeaderIndex(headers, ["featured_image", "image", "img", "cover", "cover_url"]);
+  return "";
+}
 
-  const games = [];
-  for (let i = 1; i < rows.length; i++) {
-    const r = rows[i];
-    const title = (r[titleIdx] || "").trim();
-    const platformRaw = r[platformIdx] || "";
+function buildGvizUrl(tabName) {
+  const tq = encodeURIComponent("select *");
+  return `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(tabName)}&tq=${tq}`;
+}
 
-    if (!title) continue;
+function parseGvizJson(text) {
+  const match = text.match(/setResponse\((.*)\);\s*$/s);
+  if (!match) throw new Error("Unexpected Google Sheets response. Make sure the sheet is published or shared.");
+  return JSON.parse(match[1]);
+}
 
-    const platforms = splitPlatforms(platformRaw);
-    if (platforms.length === 0) platforms.push("Console");
-
-    games.push({
-      id: idIdx !== -1 ? (r[idIdx] || i) : i,
-      title,
-      platform: platforms,
-      featured_image: imgIdx !== -1 ? (r[imgIdx] || "").trim() : ""
+function gvizToObjects(gviz) {
+  const cols = gviz.table.cols.map(c => c.label || c.id);
+  const rows = gviz.table.rows.map(r => {
+    const obj = {};
+    cols.forEach((colName, idx) => {
+      const cell = r.c[idx];
+      obj[colName] = cell ? (cell.f ?? cell.v) : "";
     });
-  }
-
-  return games;
+    return obj;
+  });
+  return rows;
 }
 
-function matchesPlatform(game, selected) {
-  if (selected === "ALL") return true;
-  return game.platform.includes(selected);
+function validateGameRow(row) {
+  const problems = [];
+  if (!safeText(row.title)) problems.push("Missing title");
+  if (safeText(row.trailer_url) && !youtubeIdFromUrl(row.trailer_url)) problems.push("Trailer URL not recognized (YouTube recommended)");
+  return problems;
 }
 
-function sortGames(games, mode) {
-  const copy = [...games];
-  if (mode === "AZ") copy.sort((a,b)=> a.title.localeCompare(b.title));
-  if (mode === "ZA") copy.sort((a,b)=> b.title.localeCompare(a.title));
-  if (mode === "PLATFORM") copy.sort((a,b)=> (a.platform[0] || "").localeCompare(b.platform[0] || ""));
-  return copy;
+function makeQueueCode() {
+  const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const nums = "23456789";
+  const pick = (set) => set[Math.floor(Math.random()*set.length)];
+  return `${pick(letters)}${pick(letters)}-${pick(nums)}${pick(nums)}${pick(nums)}`;
 }
 
-function setFeatured(game) {
-  el.featuredTitle.textContent = game.title;
-  el.featuredPlatform.textContent = `Available on: ${game.platform.join(" • ")}`;
+// ---------- State ----------
+let GAMES = [];
+let STATIONS = [];
+let CURRENT_VIEW = "games";
 
-  // If your sheet has an image URL column, we’ll use it:
-  if (game.featured_image) {
-    el.featuredImage.src = game.featured_image;
-  }
+// ---------- Rendering ----------
+function setView(name) {
+  CURRENT_VIEW = name;
+  $("#viewGames").hidden = name !== "games";
+  $("#viewAppointments").hidden = name !== "appointments";
+  $("#viewFeatured").hidden = name !== "featured";
+
+  $$("#navGames, #navAppointments, #navFeatured").forEach(btn => btn.classList.remove("active"));
+  if (name === "games") $("#navGames").classList.add("active");
+  if (name === "appointments") $("#navAppointments").classList.add("active");
+  if (name === "featured") $("#navFeatured").classList.add("active");
 }
 
-function renderCard(game) {
-  const platforms = game.platform || [];
-  const primary = platforms[0] || "Console";
-  const extraCount = Math.max(0, platforms.length - 1);
+function escapeHtml(s) {
+  return safeText(s)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
 
-  const card = document.createElement("div");
-  card.className = "card";
-  card.setAttribute("role", "button");
-  card.setAttribute("tabindex", "0");
-  card.setAttribute("aria-label", `Feature ${game.title}`);
+function renderFilters() {
+  const platforms = uniqSorted(GAMES.map(g => safeText(g.platform)));
+  const genres = uniqSorted(GAMES.map(g => safeText(g.genre)));
 
-  card.innerHTML = `
-    <h3 class="card__title">${escapeHtml(game.title)}</h3>
-    <div class="badges">
-      <span class="badge badge--green">${escapeHtml(primary)}</span>
-      ${extraCount > 0 ? `<span class="badge badge--gold">+${extraCount} more</span>` : ""}
-    </div>
+  const pf = $("#platformFilter");
+  const gf = $("#genreFilter");
+
+  const pfVal = pf.value;
+  const gfVal = gf.value;
+
+  pf.innerHTML = `<option value="">All platforms</option>` + platforms.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("");
+  gf.innerHTML = `<option value="">All genres</option>` + genres.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join("");
+
+  pf.value = platforms.includes(pfVal) ? pfVal : "";
+  gf.value = genres.includes(gfVal) ? gfVal : "";
+}
+
+function gameCard(game) {
+  const title = escapeHtml(game.title);
+  const platform = escapeHtml(game.platform);
+  const genre = escapeHtml(game.genre);
+  const station = escapeHtml(game.station);
+  const thumb = safeText(game.thumbnail_url);
+  const hasTrailer = !!youtubeIdFromUrl(game.trailer_url);
+
+  const badges = [
+    platform ? `<span class="badge accent">${platform}</span>` : "",
+    genre ? `<span class="badge">${genre}</span>` : "",
+    station ? `<span class="badge">Station: ${station}</span>` : "",
+  ].filter(Boolean).join("");
+
+  const thumbHtml = thumb
+    ? `<img src="${escapeHtml(thumb)}" alt="${title} cover" loading="lazy" />`
+    : `<div style="padding:10px; text-align:center; font-weight:900;">${title}</div>`;
+
+  return `
+    <article class="game">
+      <div class="game-thumb">${thumbHtml}</div>
+      <div class="game-body">
+        <div class="game-title">${title}</div>
+        <div class="badges">${badges}</div>
+        <div class="game-actions">
+          <button class="secondary" data-action="trailer" data-id="${escapeHtml(game.game_id || title)}" ${hasTrailer ? "" : "disabled"}>
+            🎬 Watch Clip
+          </button>
+          <button class="primary" data-action="book" data-title="${title}">📅 Book</button>
+        </div>
+      </div>
+    </article>
   `;
-
-  const feature = () => setFeatured(game);
-  card.addEventListener("click", feature);
-  card.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === " ") feature();
-  });
-
-  return card;
 }
 
-function applyFilters() {
-  const q = normalize(el.search.value);
-  const selectedPlatform = el.platform.value;
-  const sortMode = el.sort.value;
+function renderGames() {
+  const q = safeText($("#searchInput").value).toLowerCase();
+  const pf = safeText($("#platformFilter").value).toLowerCase();
+  const gf = safeText($("#genreFilter").value).toLowerCase();
 
-  let filtered = GAMES.filter(g => {
-    const titleMatch = normalize(g.title).includes(q);
-    const platformMatch = matchesPlatform(g, selectedPlatform);
-    return titleMatch && platformMatch;
+  const filtered = GAMES.filter(g => {
+    if (!isActiveRow(g)) return false;
+    const title = safeText(g.title).toLowerCase();
+    const platform = safeText(g.platform).toLowerCase();
+    const genre = safeText(g.genre).toLowerCase();
+
+    const matchesQ = !q || title.includes(q) || platform.includes(q) || genre.includes(q);
+    const matchesP = !pf || platform === pf;
+    const matchesG = !gf || genre === gf;
+    return matchesQ && matchesP && matchesG;
   });
 
-  filtered = sortGames(filtered, sortMode);
-
-  el.grid.innerHTML = "";
-  filtered.forEach(g => el.grid.appendChild(renderCard(g)));
-
-  el.total.textContent = String(GAMES.length);
-  el.showing.textContent = String(filtered.length);
-  el.empty.classList.toggle("hidden", filtered.length !== 0);
-}
-
-async function init() {
-  el.year.textContent = new Date().getFullYear();
-
-  // Load from Google Sheets
-  try {
-    // Show a quick loading message using the emptyState block
-    el.empty.classList.remove("hidden");
-    el.empty.textContent = "Loading games from Kickoff Google Sheet…";
-
-    GAMES = await loadGamesFromSheet();
-
-    if (GAMES.length === 0) {
-      el.empty.textContent = "No games found in the sheet yet.";
-      return;
-    }
-
-    // Feature first game by default
-    setFeatured(GAMES[0]);
-
-    // Hook events
-    el.search.addEventListener("input", applyFilters);
-    el.platform.addEventListener("change", applyFilters);
-    el.sort.addEventListener("change", applyFilters);
-
-    // Render
-    applyFilters();
-
-  } catch (err) {
-    console.error(err);
-    el.empty.classList.remove("hidden");
-    el.empty.textContent =
-      "Could not load games from Google Sheets. " +
-      "Make sure the sheet is Published to web or shared publicly, and headers include Title + Platform.";
+  const grid = $("#gamesGrid");
+  if (!filtered.length) {
+    grid.innerHTML = `<div class="station"><b>No games found.</b><div class="muted">Try clearing filters or searching a different keyword.</div></div>`;
+    return;
   }
+  grid.innerHTML = filtered.map(gameCard).join("");
 }
 
-init();
+function renderFeatured() {
+  const featured = GAMES.filter(g => isActiveRow(g) && normalizeYesNo(g.featured));
+  const grid = $("#featuredGrid");
+  if (!featured.length) {
+    grid.innerHTML = `<div class="station"><b>No featured games right now.</b><div class="muted">Set <b>featured</b> to Yes in your sheet.</div></div>`;
+    return;
+  }
+  grid.innerHTML = featured.map(gameCard).join("");
+}
+
+function renderStations() {
+  const wrap = $("#stationsWrap");
+  const list = $("#stationsList");
+  if (!STATIONS.length) {
+    wrap.hidden = true;
+    list.innerHTML = "";
+    return;
+  }
+  wrap.hidden = false;
+  list.innerHTML = STATIONS.map(s => {
+    const name = escapeHtml(s.station_name || s.station || "Station");
+    const status = escapeHtml(s.status || "Unknown");
