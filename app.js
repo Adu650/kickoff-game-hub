@@ -1,402 +1,275 @@
-// Kickoff Game Hub
-// Data source: Google Sheets (published) via Google Visualization API
-// Set your sheet ID and tab names below.
+// Kickoff Gaming Lounge - Game List UI (Google Sheets source)
+// Brand: #0B0B0B (Black), #00FF88 (Green), #C9A227 (Gold), #F5F7FA (White)
 
-const CONFIG = {
-  sheetId: "13rkxqr7sohPeexiygv0dBMFV63ElDb2J",
-  gamesTabName: "Games",
-  stationsTabName: "Stations", // optional
-  // If you publish the sheet, the visualization endpoint can read without auth.
+// ====== YOUR SHEET SETTINGS ======
+const SHEET_ID = "13rkxqr7sohPeexiygv0dBMFV63ElDb2J";
+
+// If your games are on the FIRST tab, gid is usually 0.
+// If not, open the sheet in browser and look for: ...gid=123456789
+const GID = "0";
+
+// Google "gviz" endpoint can return CSV (works best when sheet is published or public)
+const SHEET_CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${GID}`;
+
+// Expected columns in your sheet (header row):
+// - title OR game OR name
+// - platform OR console
+// Optional:
+// - id
+// - featured_image (url)
+const REQUIRED_TITLE_KEYS = ["title", "game", "name"];
+const REQUIRED_PLATFORM_KEYS = ["platform", "console"];
+
+// ====== DOM ======
+const el = {
+  grid: document.getElementById("grid"),
+  search: document.getElementById("search"),
+  platform: document.getElementById("platform"),
+  sort: document.getElementById("sort"),
+  total: document.getElementById("totalGames"),
+  showing: document.getElementById("showingGames"),
+  empty: document.getElementById("emptyState"),
+  year: document.getElementById("year"),
+  featuredTitle: document.getElementById("featuredTitle"),
+  featuredPlatform: document.getElementById("featuredPlatform"),
+  featuredImage: document.getElementById("featuredImage"),
 };
 
-// ---------- Utilities ----------
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+let GAMES = []; // <- populated from Google Sheets
 
-function setStatus(pillText, statusText, kind="info") {
-  const pill = $("#dataPill");
-  const txt = $("#statusText");
-  pill.textContent = pillText;
-  txt.textContent = statusText;
-
-  // subtle pill color changes without hard-coding extra colors
-  pill.style.background = kind === "ok" ? "rgba(34,197,94,.12)" :
-                         kind === "warn" ? "rgba(245,158,11,.12)" :
-                         "rgba(56,189,248,.12)";
-  pill.style.borderColor = kind === "ok" ? "rgba(34,197,94,.22)" :
-                           kind === "warn" ? "rgba(245,158,11,.22)" :
-                           "rgba(56,189,248,.22)";
+function normalize(s) {
+  return (s || "").toLowerCase().trim();
 }
 
-function safeText(v) {
-  return (v ?? "").toString().trim();
+function escapeHtml(str) {
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
-function normalizeYesNo(v) {
-  const s = safeText(v).toLowerCase();
-  return s === "yes" || s === "y" || s === "true" || s === "1";
+function parseCSV(csvText) {
+  // Simple CSV parser (handles quoted commas)
+  const rows = [];
+  let row = [];
+  let cur = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < csvText.length; i++) {
+    const ch = csvText[i];
+    const next = csvText[i + 1];
+
+    if (ch === '"' && inQuotes && next === '"') {
+      cur += '"';
+      i++;
+      continue;
+    }
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+    if (ch === "," && !inQuotes) {
+      row.push(cur);
+      cur = "";
+      continue;
+    }
+    if ((ch === "\n" || ch === "\r") && !inQuotes) {
+      if (cur.length || row.length) {
+        row.push(cur);
+        rows.push(row);
+      }
+      row = [];
+      cur = "";
+      continue;
+    }
+    cur += ch;
+  }
+
+  if (cur.length || row.length) {
+    row.push(cur);
+    rows.push(row);
+  }
+
+  // Remove empty trailing rows
+  return rows.filter(r => r.some(cell => String(cell).trim() !== ""));
 }
 
-function isActiveRow(row) {
-  const status = safeText(row.status).toLowerCase();
-  return status === "" || status === "active" || status === "yes" || status === "true" || status === "1";
+function findHeaderIndex(headers, keys) {
+  const lower = headers.map(h => normalize(h));
+  for (const k of keys) {
+    const idx = lower.indexOf(k);
+    if (idx !== -1) return idx;
+  }
+  return -1;
 }
 
-function uniqSorted(arr) {
-  return Array.from(new Set(arr.filter(Boolean))).sort((a,b) => a.localeCompare(b));
+function splitPlatforms(value) {
+  // supports: "XBOX ONE, PS5" or "XBOX ONE / PS5" etc.
+  return String(value || "")
+    .split(/,|\/|\||•/g)
+    .map(s => s.trim())
+    .filter(Boolean);
 }
 
-function youtubeIdFromUrl(url) {
-  const u = safeText(url);
-  if (!u) return "";
-  // Support youtu.be/<id>, youtube.com/watch?v=<id>, youtube.com/embed/<id>
-  const m1 = u.match(/youtu\.be\/(^[\s?&]+)?([A-Za-z0-9_-]{6,})/);
-  if (m1 && m1[2]) return m1[2];
-  const m2 = u.match(/[?&]v=([A-Za-z0-9_-]{6,})/);
-  if (m2 && m2[1]) return m2[1];
-  const m3 = u.match(/\/embed\/([A-Za-z0-9_-]{6,})/);
-  if (m3 && m3[1]) return m3[1];
-  // If user pasted just an ID
-  if (/^[A-Za-z0-9_-]{6,}$/.test(u)) return u;
-  return "";
-}
+async function loadGamesFromSheet() {
+  const res = await fetch(SHEET_CSV_URL, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch sheet. HTTP ${res.status}. Make sure the sheet is Published to web or shared publicly.`);
+  }
 
-function buildGvizUrl(tabName) {
-  // tq selects everything; we parse JSON response from gviz
-  const tq = encodeURIComponent("select *");
-  return `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(tabName)}&tq=${tq}`;
-}
+  const csv = await res.text();
+  const rows = parseCSV(csv);
 
-function parseGvizJson(text) {
-  // Google's response is like: /*O_o*/\ngoogle.visualization.Query.setResponse({...});
-  const match = text.match(/setResponse\((.*)\);\s*$/s);
-  if (!match) throw new Error("Unexpected Google Sheets response. Make sure the sheet is published or shared.");
-  return JSON.parse(match[1]);
-}
+  if (rows.length < 2) {
+    throw new Error("Sheet has no data rows. Make sure there is a header row + at least one game row.");
+  }
 
-function gvizToObjects(gviz) {
-  const cols = gviz.table.cols.map(c => c.label || c.id);
-  const rows = gviz.table.rows.map(r => {
-    const obj = {};
-    cols.forEach((colName, idx) => {
-      const cell = r.c[idx];
-      obj[colName] = cell ? (cell.f ?? cell.v) : "";
+  const headers = rows[0].map(h => String(h).trim());
+  const titleIdx = findHeaderIndex(headers, REQUIRED_TITLE_KEYS);
+  const platformIdx = findHeaderIndex(headers, REQUIRED_PLATFORM_KEYS);
+
+  if (titleIdx === -1 || platformIdx === -1) {
+    throw new Error(
+      `Could not find required columns in sheet.\n` +
+      `Expected a header like: Title + Platform (or Game/Name + Console).\n` +
+      `Found headers: ${headers.join(", ")}`
+    );
+  }
+
+  // optional columns
+  const idIdx = findHeaderIndex(headers, ["id"]);
+  const imgIdx = findHeaderIndex(headers, ["featured_image", "image", "img", "cover", "cover_url"]);
+
+  const games = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    const title = (r[titleIdx] || "").trim();
+    const platformRaw = r[platformIdx] || "";
+
+    if (!title) continue;
+
+    const platforms = splitPlatforms(platformRaw);
+    if (platforms.length === 0) platforms.push("Console");
+
+    games.push({
+      id: idIdx !== -1 ? (r[idIdx] || i) : i,
+      title,
+      platform: platforms,
+      featured_image: imgIdx !== -1 ? (r[imgIdx] || "").trim() : ""
     });
-    return obj;
-  });
-  return rows;
+  }
+
+  return games;
 }
 
-function validateGameRow(row) {
-  const problems = [];
-  if (!safeText(row.title)) problems.push("Missing title");
-  // trailer is optional but recommended
-  if (safeText(row.trailer_url) && !youtubeIdFromUrl(row.trailer_url)) problems.push("Trailer URL not recognized (YouTube recommended)");
-  return problems;
+function matchesPlatform(game, selected) {
+  if (selected === "ALL") return true;
+  return game.platform.includes(selected);
 }
 
-function makeQueueCode() {
-  const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-  const nums = "23456789";
-  const pick = (set) => set[Math.floor(Math.random()*set.length)];
-  return `${pick(letters)}${pick(letters)}-${pick(nums)}${pick(nums)}${pick(nums)}`;
+function sortGames(games, mode) {
+  const copy = [...games];
+  if (mode === "AZ") copy.sort((a,b)=> a.title.localeCompare(b.title));
+  if (mode === "ZA") copy.sort((a,b)=> b.title.localeCompare(a.title));
+  if (mode === "PLATFORM") copy.sort((a,b)=> (a.platform[0] || "").localeCompare(b.platform[0] || ""));
+  return copy;
 }
 
-// ---------- State ----------
-let GAMES = [];
-let STATIONS = [];
-let CURRENT_VIEW = "games";
+function setFeatured(game) {
+  el.featuredTitle.textContent = game.title;
+  el.featuredPlatform.textContent = `Available on: ${game.platform.join(" • ")}`;
 
-// ---------- Rendering ----------
-function setView(name) {
-  CURRENT_VIEW = name;
-  $("#viewGames").hidden = name !== "games";
-  $("#viewAppointments").hidden = name !== "appointments";
-  $("#viewFeatured").hidden = name !== "featured";
-  $$("#navGames, #navAppointments, #navFeatured").forEach(btn => btn.classList.remove("active"));
-  if (name === "games") $("#navGames").classList.add("active");
-  if (name === "appointments") $("#navAppointments").classList.add("active");
-  if (name === "featured") $("#navFeatured").classList.add("active");
+  // If your sheet has an image URL column, we’ll use it:
+  if (game.featured_image) {
+    el.featuredImage.src = game.featured_image;
+  }
 }
 
-function renderFilters() {
-  const platforms = uniqSorted(GAMES.map(g => safeText(g.platform)));
-  const genres = uniqSorted(GAMES.map(g => safeText(g.genre)));
+function renderCard(game) {
+  const platforms = game.platform || [];
+  const primary = platforms[0] || "Console";
+  const extraCount = Math.max(0, platforms.length - 1);
 
-  const pf = $("#platformFilter");
-  const gf = $("#genreFilter");
+  const card = document.createElement("div");
+  card.className = "card";
+  card.setAttribute("role", "button");
+  card.setAttribute("tabindex", "0");
+  card.setAttribute("aria-label", `Feature ${game.title}`);
 
-  // preserve selection if possible
-  const pfVal = pf.value;
-  const gfVal = gf.value;
-
-  pf.innerHTML = `<option value="">All platforms</option>` + platforms.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("");
-  gf.innerHTML = `<option value="">All genres</option>` + genres.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join("");
-
-  pf.value = platforms.includes(pfVal) ? pfVal : "";
-  gf.value = genres.includes(gfVal) ? gfVal : "";
-}
-
-function escapeHtml(s) {
-  return safeText(s)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-
-function gameCard(game) {
-  const title = escapeHtml(game.title);
-  const platform = escapeHtml(game.platform);
-  const genre = escapeHtml(game.genre);
-  const station = escapeHtml(game.station);
-  const thumb = safeText(game.thumbnail_url);
-  const hasTrailer = !!youtubeIdFromUrl(game.trailer_url);
-
-  const badges = [
-    platform ? `<span class="badge accent">${platform}</span>` : "",
-    genre ? `<span class="badge">${genre}</span>` : "",
-    station ? `<span class="badge">Station: ${station}</span>` : "",
-  ].filter(Boolean).join("");
-
-  const thumbHtml = thumb
-    ? `<img src="${escapeHtml(thumb)}" alt="${title} cover" loading="lazy" />`
-    : `<div>${title}</div>`;
-
-  return `
-    <article class="game">
-      <div class="game-thumb">${thumbHtml}</div>
-      <div class="game-body">
-        <div class="game-title">${title}</div>
-        <div class="badges">${badges}</div>
-        <div class="game-actions">
-          <button class="secondary" data-action="trailer" data-id="${escapeHtml(game.game_id || title)}" ${hasTrailer ? "" : "disabled"}>
-            🎬 Watch Clip
-          </button>
-          <button class="primary" data-action="book" data-title="${title}">📅 Book</button>
-        </div>
-      </div>
-    </article>
+  card.innerHTML = `
+    <h3 class="card__title">${escapeHtml(game.title)}</h3>
+    <div class="badges">
+      <span class="badge badge--green">${escapeHtml(primary)}</span>
+      ${extraCount > 0 ? `<span class="badge badge--gold">+${extraCount} more</span>` : ""}
+    </div>
   `;
-}
 
-function renderGames() {
-  const q = safeText($("#searchInput").value).toLowerCase();
-  const pf = safeText($("#platformFilter").value).toLowerCase();
-  const gf = safeText($("#genreFilter").value).toLowerCase();
-
-  const filtered = GAMES.filter(g => {
-    if (!isActiveRow(g)) return false;
-    const title = safeText(g.title).toLowerCase();
-    const platform = safeText(g.platform).toLowerCase();
-    const genre = safeText(g.genre).toLowerCase();
-
-    const matchesQ = !q || title.includes(q) || platform.includes(q) || genre.includes(q);
-    const matchesP = !pf || platform === pf;
-    const matchesG = !gf || genre === gf;
-    return matchesQ && matchesP && matchesG;
+  const feature = () => setFeatured(game);
+  card.addEventListener("click", feature);
+  card.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") feature();
   });
 
-  const grid = $("#gamesGrid");
-  if (!filtered.length) {
-    grid.innerHTML = `<div class="card"><b>No games found.</b><div class="muted">Try clearing filters or searching a different keyword.</div></div>`;
-    return;
-  }
-  grid.innerHTML = filtered.map(gameCard).join("");
+  return card;
 }
 
-function renderFeatured() {
-  const featured = GAMES.filter(g => isActiveRow(g) && normalizeYesNo(g.featured));
-  const grid = $("#featuredGrid");
-  if (!featured.length) {
-    grid.innerHTML = `<div class="card"><b>No featured games right now.</b><div class="muted">Set <b>featured</b> to Yes in your sheet.</div></div>`;
-    return;
-  }
-  grid.innerHTML = featured.map(gameCard).join("");
+function applyFilters() {
+  const q = normalize(el.search.value);
+  const selectedPlatform = el.platform.value;
+  const sortMode = el.sort.value;
+
+  let filtered = GAMES.filter(g => {
+    const titleMatch = normalize(g.title).includes(q);
+    const platformMatch = matchesPlatform(g, selectedPlatform);
+    return titleMatch && platformMatch;
+  });
+
+  filtered = sortGames(filtered, sortMode);
+
+  el.grid.innerHTML = "";
+  filtered.forEach(g => el.grid.appendChild(renderCard(g)));
+
+  el.total.textContent = String(GAMES.length);
+  el.showing.textContent = String(filtered.length);
+  el.empty.classList.toggle("hidden", filtered.length !== 0);
 }
 
-function renderStations() {
-  const wrap = $("#stationsWrap");
-  const list = $("#stationsList");
-  if (!STATIONS.length) {
-    wrap.hidden = true;
-    list.innerHTML = "";
-    return;
-  }
-  wrap.hidden = false;
-  list.innerHTML = STATIONS.map(s => {
-    const name = escapeHtml(s.station_name || s.station || "Station");
-    const status = escapeHtml(s.status || "Unknown");
-    const note = escapeHtml(s.note || "");
-    return `
-      <div class="station">
-        <div class="station-top">
-          <div class="station-name">${name}</div>
-          <div class="station-status">${status}</div>
-        </div>
-        ${note ? `<div class="muted" style="margin-top:6px">${note}</div>` : ""}
-      </div>
-    `;
-  }).join("");
-}
+async function init() {
+  el.year.textContent = new Date().getFullYear();
 
-// ---------- Modal ----------
-function openTrailer(game) {
-  const id = youtubeIdFromUrl(game.trailer_url);
-  if (!id) return;
-  $("#modalTitle").textContent = `${safeText(game.title)} — Trailer`;
-  $("#modalMeta").textContent = `${safeText(game.platform)}${game.genre ? " • " + safeText(game.genre) : ""}`;
-  $("#videoWrap").innerHTML = `
-    <iframe
-      src="https://www.youtube.com/embed/${id}?autoplay=1&mute=1&rel=0&modestbranding=1"
-      title="YouTube video player"
-      allow="autoplay; encrypted-media; picture-in-picture"
-      allowfullscreen></iframe>
-  `;
-  $("#trailerModal").classList.add("show");
-  $("#trailerModal").setAttribute("aria-hidden", "false");
-}
-
-function closeModal() {
-  $("#trailerModal").classList.remove("show");
-  $("#trailerModal").setAttribute("aria-hidden", "true");
-  $("#videoWrap").innerHTML = "";
-}
-
-// ---------- Data Loading ----------
-async function loadTab(tabName) {
-  const url = buildGvizUrl(tabName);
-  const res = await fetch(url, { cache: "no-store" });
-  const text = await res.text();
-  const gviz = parseGvizJson(text);
-  return gvizToObjects(gviz);
-}
-
-async function refreshData() {
-  if (CONFIG.sheetId.includes("REPLACE_WITH")) {
-    setStatus("Setup needed", "Edit app.js and set CONFIG.sheetId to your Google Sheet ID.", "warn");
-    return;
-  }
-
-  setStatus("Loading…", "Fetching the latest game list.", "info");
-
+  // Load from Google Sheets
   try {
-    const rows = await loadTab(CONFIG.gamesTabName);
+    // Show a quick loading message using the emptyState block
+    el.empty.classList.remove("hidden");
+    el.empty.textContent = "Loading games from Kickoff Google Sheet…";
 
-    // Normalize headers: expect specific columns; if user used different labels, they can rename headers.
-    const mapped = rows.map(r => ({
-      game_id: safeText(r.game_id || r.id || r["game id"] || r["Game ID"]),
-      title: safeText(r.title || r.game || r["Game Title"] || r["title"]),
-      platform: safeText(r.platform || r.console || r["Platform"]),
-      genre: safeText(r.genre || r["Genre"]),
-      trailer_url: safeText(r.trailer_url || r.trailer || r["Trailer URL"]),
-      thumbnail_url: safeText(r.thumbnail_url || r.thumbnail || r["Thumbnail URL"]),
-      station: safeText(r.station || r["Station"]),
-      status: safeText(r.status || r["Status"]),
-      featured: safeText(r.featured || r["Featured"]),
-    }));
+    GAMES = await loadGamesFromSheet();
 
-    const activeCount = mapped.filter(isActiveRow).length;
-
-    // Validation (soft)
-    const bad = [];
-    mapped.forEach((g, i) => {
-      const probs = validateGameRow(g);
-      if (probs.length) bad.push({ i: i+2, probs, title: g.title || "(blank)" }); // +2 for header row
-    });
-
-    GAMES = mapped;
-
-    // Stations are optional
-    try {
-      const srows = await loadTab(CONFIG.stationsTabName);
-      STATIONS = srows.map(r => ({
-        station_name: safeText(r.station_name || r.station || r["Station Name"]),
-        status: safeText(r.status || r["Status"]),
-        note: safeText(r.note || r["Note"]),
-      })).filter(s => safeText(s.station_name));
-    } catch {
-      STATIONS = [];
+    if (GAMES.length === 0) {
+      el.empty.textContent = "No games found in the sheet yet.";
+      return;
     }
 
-    renderFilters();
-    renderGames();
-    renderFeatured();
-    renderStations();
+    // Feature first game by default
+    setFeatured(GAMES[0]);
 
-    const warnMsg = bad.length ? ` • ${bad.length} row(s) need attention` : "";
-    setStatus(`Loaded ${activeCount} active`, `Game list updated.${warnMsg}`, bad.length ? "warn" : "ok");
+    // Hook events
+    el.search.addEventListener("input", applyFilters);
+    el.platform.addEventListener("change", applyFilters);
+    el.sort.addEventListener("change", applyFilters);
 
-    // Developer-friendly console details (doesn't affect users)
-    if (bad.length) console.warn("Kickoff Game Hub validation warnings:", bad);
+    // Render
+    applyFilters();
 
   } catch (err) {
     console.error(err);
-    setStatus("Error", "Could not load data. Ensure your sheet is shared/published, tab names match, and you copied the correct Sheet ID.", "warn");
+    el.empty.classList.remove("hidden");
+    el.empty.textContent =
+      "Could not load games from Google Sheets. " +
+      "Make sure the sheet is Published to web or shared publicly, and headers include Title + Platform.";
   }
 }
 
-// ---------- Events ----------
-function wireEvents() {
-  $("#year").textContent = new Date().getFullYear();
-
-  $$("#navGames, #navAppointments, #navFeatured").forEach(btn => {
-    btn.addEventListener("click", () => setView(btn.dataset.view));
-  });
-
-  $("#refreshBtn").addEventListener("click", refreshData);
-  $("#searchInput").addEventListener("input", renderGames);
-  $("#platformFilter").addEventListener("change", renderGames);
-  $("#genreFilter").addEventListener("change", renderGames);
-
-  // delegate clicks for trailer/book buttons
-  document.addEventListener("click", (e) => {
-    const btn = e.target.closest("button");
-    if (!btn) return;
-    const action = btn.dataset.action;
-
-    if (action === "trailer") {
-      const id = safeText(btn.dataset.id);
-      const game = GAMES.find(g => safeText(g.game_id) === id) || GAMES.find(g => safeText(g.title) === id) || GAMES.find(g => safeText(g.title) === safeText(btn.dataset.title));
-      if (game) openTrailer(game);
-    }
-
-    if (action === "book") {
-      // In Phase 1, booking is a guided flow: generate a queue slip + show staff
-      setView("appointments");
-      $("#joinQueueBtn").focus();
-      if (btn.dataset.title) {
-        $("#statusText").textContent = `Selected: ${safeText(btn.dataset.title)} (tell staff when checking in).`;
-      }
-    }
-  });
-
-  $("#modalBackdrop").addEventListener("click", closeModal);
-  $("#closeModalBtn").addEventListener("click", closeModal);
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeModal();
-  });
-
-  $("#joinQueueBtn").addEventListener("click", () => {
-    const code = makeQueueCode();
-    const now = new Date();
-    $("#slipCode").textContent = code;
-    $("#slipTimestamp").textContent = now.toLocaleString();
-    $("#queueSlip").hidden = false;
-  });
-
-  $("#bookBtn").addEventListener("click", () => {
-    alert("Reserve-a-time is coming soon. For now, join the queue and staff will assign a station.");
-  });
-
-  $("#aboutLink").addEventListener("click", (e) => {
-    e.preventDefault();
-    alert("Kickoff Game Hub: Browse games, watch clips, and join the queue. Updates are managed in a Google Sheet.");
-  });
-}
-
-// ---------- Start ----------
-wireEvents();
-setView("games");
-refreshData();
+init();
