@@ -2,27 +2,78 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Kickoff Gaming Lounge — Game Hub</title>
-  <meta name="description" content="Kickoff Gaming Lounge Ghana — Where Competition Meets Atmosphere. Browse games, watch clips, join queue." />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Bebas+Neue&display=swap" rel="stylesheet">
+  <title>Kickoff Gaming Lounge | PS5 & Xbox Gaming Lounge in Sunyani, Ghana</title>
+  <meta name="description" content="Visit Kickoff Gaming Lounge in Sunyani, Ghana for PlayStation 5 and Xbox gaming. Browse our game library, watch trailers, join the queue, and get directions." />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="theme-color" content="#0B0B0B" />
+  <link rel="canonical" href="https://adu650.github.io/kickoff-game-hub/" />
 
-  <!-- IMPORTANT: keep this exact path -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Kickoff Gaming Lounge" />
+  <meta property="og:title" content="Kickoff Gaming Lounge | Gaming in Sunyani, Ghana" />
+  <meta property="og:description" content="Browse PS5 and Xbox games, watch trailers, join the queue, and find Kickoff Gaming Lounge in Sunyani." />
+  <meta property="og:url" content="https://adu650.github.io/kickoff-game-hub/" />
+  <meta property="og:image" content="https://adu650.github.io/kickoff-game-hub/assets/logo.png" />
+  <meta property="og:locale" content="en_GH" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Kickoff Gaming Lounge | Sunyani" />
+  <meta name="twitter:description" content="Explore our PS5 and Xbox game library, watch clips, and join the queue before you visit." />
+  <meta name="twitter:image" content="https://adu650.github.io/kickoff-game-hub/assets/logo.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Bebas+Neue&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./style.css" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "EntertainmentBusiness",
+    "@id": "https://adu650.github.io/kickoff-game-hub/#business",
+    "name": "Kickoff Gaming Lounge",
+    "description": "A PlayStation 5 and Xbox gaming lounge in Sunyani, Ghana where customers can browse games, watch trailers, and join the queue.",
+    "url": "https://adu650.github.io/kickoff-game-hub/",
+    "telephone": "+233555232694",
+    "image": "https://adu650.github.io/kickoff-game-hub/assets/logo.png",
+    "slogan": "Where Competition Meets Atmosphere",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "Rex Story Building, Opposite Cocoa Board, 3rd Floor",
+      "addressLocality": "Sunyani",
+      "addressRegion": "Bono Region",
+      "addressCountry": "GH"
+    },
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": 7.332206613238693,
+      "longitude": -2.330150925514573
+    },
+    "hasMap": "https://www.google.com/maps/search/?api=1&query=7.332206613238693,-2.330150925514573",
+    "sameAs": [
+      "https://www.tiktok.com/@kickoffgaminggh"
+    ]
+  }
+  </script>
 </head>
 
 <body>
-  <!-- Top Bar -->
+  <a class="skipLink" href="#mainContent">Skip to main content</a>
+
   <header class="topbar">
     <div class="container topbar__inner">
-      <div class="brand">
-        <!-- Put your final logo file at /assets/logo.png and this will show -->
+      <a class="brand" href="#top" aria-label="Kickoff Gaming Lounge home">
         <div class="brand__logoWrap">
-          <img class="brand__logo" src="./assets/logo.png" alt="Kickoff Gaming Lounge logo"
-               onerror="this.style.display='none';document.getElementById('fallbackMark').style.display='grid';" />
+          <img
+            class="brand__logo"
+            src="./assets/logo.png"
+            alt="Kickoff Gaming Lounge logo"
+            width="46"
+            height="46"
+            onerror="this.style.display='none';document.getElementById('fallbackMark').style.display='grid';"
+          />
           <div id="fallbackMark" class="brand__mark" aria-hidden="true" style="display:none;">
             <span class="brand__k">K</span>
           </div>
@@ -30,50 +81,83 @@
 
         <div class="brand__text">
           <div class="brand__name">KICKOFF</div>
-          <div class="brand__sub">GAMING LOUNGE • GHANA</div>
+          <div class="brand__sub">Gaming Lounge • Sunyani</div>
         </div>
-      </div>
+      </a>
 
       <div class="topbar__right">
         <span class="tagline">Where Competition Meets Atmosphere</span>
-        <button id="refreshBtn" class="btn btn--ghost" type="button">Refresh</button>
+        <button id="refreshBtn" class="btn btn--ghost" type="button" aria-label="Refresh game list">Refresh</button>
       </div>
     </div>
   </header>
 
-  <!-- Hero / Status -->
-  <section class="hero">
+  <div id="top"></div>
+
+  <section class="hero" aria-labelledby="heroTitle">
     <div class="container hero__inner">
-      <div>
-        <h1 class="hero__title">Kickoff Game Hub</h1>
+      <div class="hero__content">
+        <p class="eyebrow">Gaming lounge in Sunyani, Ghana</p>
+        <h1 id="heroTitle" class="hero__title">Kickoff Game Hub</h1>
         <p class="hero__desc">
-          Browse games, watch clips, and join the queue.
+          Kickoff Gaming Lounge is Sunyani's destination for PlayStation 5 and Xbox gaming.
+          Browse our game library, watch trailers, and join the queue before you visit.
         </p>
 
-        <div class="statusRow">
-          <span id="dataPill" class="pill">Loading…</span>
-          <span id="statusText" class="statusText">Fetching the latest game list.</span>
-    
+        <div class="heroHighlights" aria-label="Kickoff Gaming Lounge highlights">
+          <div class="highlight"><strong id="gameCount">—</strong><span>Games available</span></div>
+          <div class="highlight"><strong>PS5 + Xbox</strong><span>Modern consoles</span></div>
+          <div class="highlight"><strong>Sunyani</strong><span>Easy to find</span></div>
+          <div class="highlight"><strong>Online queue</strong><span>Plan ahead</span></div>
         </div>
 
-        <nav class="nav">
+        <div class="statusRow" aria-live="polite">
+          <span id="dataPill" class="pill">Loading…</span>
+          <span id="statusText" class="statusText">Fetching the latest game list.</span>
+        </div>
+
+        <nav class="nav" aria-label="Game hub sections">
           <button id="navGames" class="nav__btn active" data-view="games" type="button">Games</button>
           <button id="navFeatured" class="nav__btn" data-view="featured" type="button">Featured</button>
           <button id="navAppointments" class="nav__btn" data-view="appointments" type="button">Queue</button>
+          <button id="navVisit" class="nav__btn" type="button">Visit Us</button>
         </nav>
-  
+      </div>
+
+      <aside class="heroCard" aria-label="Plan your visit">
+        <div class="heroCard__title">Plan Your Session</div>
+        <div class="heroCard__body">
+          <div class="quick">
+            <div class="quick__label">1. Choose a game</div>
+            <div class="quick__text">Search by title, console, or genre and preview available trailers.</div>
+          </div>
+          <div class="quick">
+            <div class="quick__label">2. Join the queue</div>
+            <div class="quick__text">Generate a queue slip and show the code to staff at the front desk.</div>
+          </div>
+          <div class="quick">
+            <div class="quick__label">3. Visit Kickoff</div>
+            <div class="quick__text">Find us opposite Cocoa Board at Rex Story Building, 3rd Floor.</div>
+          </div>
+          <a class="btn btn--primary heroCard__cta" href="#visit-us">Get location details</a>
+        </div>
+      </aside>
+    </div>
   </section>
 
-  <main class="container">
-    <!-- GAMES VIEW -->
-    <section id="viewGames">
+  <main id="mainContent" class="container">
+    <section id="viewGames" aria-labelledby="allGamesTitle">
       <div class="panelHead">
-        <h2 class="panelHead__title">All Games</h2>
+        <div>
+          <p class="sectionKicker">Game library</p>
+          <h2 id="allGamesTitle" class="panelHead__title">All Games</h2>
+          <p class="muted">Explore PlayStation and Xbox games available at our Sunyani gaming lounge.</p>
+        </div>
 
-        <div class="filters">
+        <div class="filters" role="search" aria-label="Filter games">
           <div class="field">
             <label for="searchInput">Search</label>
-            <input id="searchInput" type="text" placeholder="Search title, platform, genre…" />
+            <input id="searchInput" type="search" placeholder="Search title, platform, genre…" autocomplete="off" />
           </div>
 
           <div class="field">
@@ -97,51 +181,130 @@
         <div id="stationsList" class="stations__list"></div>
       </div>
 
-      <div id="gamesGrid" class="grid"></div>
+      <div id="gamesGrid" class="grid" aria-live="polite"></div>
     </section>
 
-    <!-- FEATURED VIEW -->
-    <section id="viewFeatured" hidden>
+    <section id="viewFeatured" hidden aria-labelledby="featuredTitle">
       <div class="panelHead">
-        <h2 class="panelHead__title">Featured Games</h2>
-        <div class="muted">Controlled by the <b>featured</b> column in your sheet.</div>
+        <div>
+          <p class="sectionKicker">Staff picks</p>
+          <h2 id="featuredTitle" class="panelHead__title">Featured Games</h2>
+          <p class="muted">Popular and recommended games selected by the Kickoff team.</p>
+        </div>
       </div>
-      <div id="featuredGrid" class="grid"></div>
+      <div id="featuredGrid" class="grid" aria-live="polite"></div>
     </section>
 
-    <!-- APPOINTMENTS / QUEUE VIEW -->
-    <section id="viewAppointments" hidden>
+    <section id="viewAppointments" hidden aria-labelledby="queueTitle">
       <div class="panelHead">
-        <h2 class="panelHead__title">Join the Queue</h2>
-        <div class="muted">Staff will assign a station when it’s your turn.</div>
+        <div>
+          <p class="sectionKicker">Save your place</p>
+          <h2 id="queueTitle" class="panelHead__title">Join the Queue</h2>
+          <p class="muted">Generate a queue code, then show it to staff when you arrive. Staff will assign an available station.</p>
+        </div>
       </div>
 
-      <div class="queueWrap">
-        <button id="joinQueueBtn" class="btn btn--primary" type="button">Generate Queue Slip</button>
-        <button id="bookBtn" class="btn btn--secondary" type="button">Reserve a Time (Soon)</button>
+      <div class="queuePanel">
+        <div class="queueWrap">
+          <button id="joinQueueBtn" class="btn btn--primary" type="button">Generate Queue Slip</button>
+          <button id="bookBtn" class="btn btn--secondary" type="button">Reserve a Time (Soon)</button>
+        </div>
 
-        <div id="queueSlip" class="slip" hidden>
+        <div id="queueSlip" class="slip" hidden aria-live="polite">
           <div class="slip__label">Your Queue Code</div>
           <div id="slipCode" class="slip__code">—</div>
           <div id="slipTimestamp" class="slip__time muted">—</div>
-          <div class="muted">Show this code to the front desk.</div>
+          <div class="muted">Take a screenshot and show this code to the front desk.</div>
         </div>
       </div>
     </section>
 
-    <!-- Footer -->
-    <footer class="footer">
-      <div class="footer__line"></div>
-      <div class="footer__text">
-        © <span id="year"></span> Kickoff Gaming Lounge — Ghana • <span class="footer__tag">Where Competition Meets Atmosphere</span>
+    <section id="why-kickoff" class="whySection" aria-labelledby="whyTitle">
+      <div class="sectionHeading">
+        <p class="sectionKicker">Why gamers choose us</p>
+        <h2 id="whyTitle" class="panelHead__title">Competition, Comfort, Community</h2>
+        <p class="muted">A social gaming experience in the heart of Sunyani for casual sessions, competitive matches, and time with friends.</p>
       </div>
-    </footer>
+
+      <div class="benefitGrid">
+        <article class="benefitCard"><span aria-hidden="true">🎮</span><h3>Modern Consoles</h3><p>Play popular titles on PlayStation 5 and Xbox systems.</p></article>
+        <article class="benefitCard"><span aria-hidden="true">🛋️</span><h3>Comfortable Stations</h3><p>Enjoy a welcoming lounge atmosphere designed for longer sessions.</p></article>
+        <article class="benefitCard"><span aria-hidden="true">🏆</span><h3>Competitive Energy</h3><p>Challenge friends, sharpen your skills, and join the local gaming community.</p></article>
+        <article class="benefitCard"><span aria-hidden="true">📍</span><h3>Central Sunyani Location</h3><p>Find us at Rex Story Building, opposite Cocoa Board, on the 3rd Floor.</p></article>
+      </div>
+    </section>
+
+    <section id="visit-us" class="visitSection" aria-labelledby="visitTitle">
+      <div class="sectionHeading">
+        <p class="sectionKicker">Visit Kickoff Gaming Lounge</p>
+        <h2 id="visitTitle" class="panelHead__title">Your Gaming Destination in Sunyani</h2>
+        <p class="visitIntro">Come play PlayStation 5 and Xbox games in a competitive, welcoming atmosphere. Use the map for directions or contact us before your visit.</p>
+      </div>
+
+      <div class="visitGrid">
+        <article class="businessCard">
+          <div class="businessCard__icon" aria-hidden="true">K</div>
+          <div>
+            <h3>Kickoff Gaming Lounge</h3>
+            <address>
+              Rex Story Building<br />
+              Opposite Cocoa Board, 3rd Floor<br />
+              Sunyani, Bono Region, Ghana
+            </address>
+            <a class="businessPhone" href="tel:+233555232694">+233 55 523 2694</a>
+          </div>
+
+          <div class="visitActions">
+            <a class="btn btn--primary" data-track="directions" href="https://www.google.com/maps/search/?api=1&query=7.332206613238693%2C-2.330150925514573" target="_blank" rel="noopener noreferrer">Get Directions</a>
+            <a class="btn btn--secondary" data-track="call" href="tel:+233555232694">Call Us</a>
+            <a class="btn btn--ghost" data-track="tiktok" href="https://www.tiktok.com/@kickoffgaminggh?_r=1&_t=ZT-98RaZBGVE1m" target="_blank" rel="noopener noreferrer">Follow on TikTok</a>
+          </div>
+        </article>
+
+        <div class="mapWrap">
+          <iframe
+            title="Map showing Kickoff Gaming Lounge in Sunyani"
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3957.1930230260978!2d-2.330150925514573!3d7.332206613238693!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0xfdac9b77baa731f%3A0x10f8fbfc112bd12e!2sKickoff%20Gaming%20Lounge!5e0!3m2!1sen!2sus!4v1785349473867!5m2!1sen!2sus"
+            width="600"
+            height="450"
+            style="border:0;"
+            allowfullscreen
+            loading="lazy"
+            referrerpolicy="strict-origin-when-cross-origin">
+          </iframe>
+        </div>
+      </div>
+    </section>
   </main>
 
-  <!-- Trailer Modal -->
+  <footer class="footer">
+    <div class="container footer__grid">
+      <div>
+        <div class="footer__brand">Kickoff Gaming Lounge</div>
+        <p>Where Competition Meets Atmosphere.</p>
+      </div>
+
+      <div>
+        <h2 class="footer__heading">Visit</h2>
+        <p>Rex Story Building<br />Opposite Cocoa Board, 3rd Floor<br />Sunyani, Bono Region, Ghana</p>
+      </div>
+
+      <div>
+        <h2 class="footer__heading">Connect</h2>
+        <p><a href="tel:+233555232694">+233 55 523 2694</a></p>
+        <p><a href="https://www.tiktok.com/@kickoffgaminggh?_r=1&_t=ZT-98RaZBGVE1m" target="_blank" rel="noopener noreferrer">TikTok</a></p>
+        <p><a href="#top">Back to top</a></p>
+      </div>
+    </div>
+
+    <div class="container footer__bottom">
+      © <span id="year"></span> Kickoff Gaming Lounge. All rights reserved.
+    </div>
+  </footer>
+
   <div id="trailerModal" class="modal" aria-hidden="true">
     <div id="modalBackdrop" class="modal__backdrop"></div>
-    <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle" tabindex="-1">
       <div class="modal__head">
         <div>
           <div id="modalTitle" class="modal__title">Trailer</div>
@@ -153,6 +316,6 @@
     </div>
   </div>
 
-  <script src="./app.js"></script>
+  <script src="./app.js" defer></script>
 </body>
 </html>
