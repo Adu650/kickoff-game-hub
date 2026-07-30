@@ -1,129 +1,295 @@
-// Kickoff Game Hub — GID-based loader (most reliable for Google Sheets)
+// Kickoff Game Hub — Google Sheets loader
 // Games tab gid: 528392995
+// IMPORTANT: Replace REPLACE_WITH_TOURNAMENT_GID with the gid from your Tournament tab.
 
 const CONFIG = {
   sheetId: "13rkxqr7sohPeexiygv0dBMFV63ElDb2J",
   gamesGid: "528392995",
+  tournamentGid: "REPLACE_WITH_TOURNAMENT_GID",
 };
 
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+const $ = (selector) => document.querySelector(selector);
+const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 
-function safeText(v) { return (v ?? "").toString().trim(); }
-function normalizeYesNo(v) {
-  const s = safeText(v).toLowerCase();
-  return s === "yes" || s === "y" || s === "true" || s === "1";
+function safeText(value) {
+  return (value ?? "").toString().trim();
 }
+
+function normalizeYesNo(value) {
+  const normalized = safeText(value).toLowerCase();
+  return ["yes", "y", "true", "1"].includes(normalized);
+}
+
 function isActiveRow(row) {
   const status = safeText(row.status).toLowerCase();
-  return status === "" || status === "active" || status === "yes" || status === "true" || status === "1";
+  return ["", "active", "yes", "true", "1"].includes(status);
 }
-function uniqSorted(arr) {
-  return Array.from(new Set(arr.filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+
+function uniqSorted(values) {
+  return Array.from(new Set(values.filter(Boolean))).sort((a, b) => a.localeCompare(b));
 }
-function escapeHtml(s) {
-  return safeText(s)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
+
+function escapeHtml(value) {
+  return safeText(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
+
+function safeUrl(value) {
+  const url = safeText(value);
+  if (!url) return "";
+
+  try {
+    const parsed = new URL(url, window.location.href);
+    if (!["http:", "https:"].includes(parsed.protocol)) return "";
+    return parsed.href;
+  } catch {
+    return "";
+  }
+}
+
 function youtubeIdFromUrl(url) {
-  const u = safeText(url);
-  if (!u) return "";
-  const m1 = u.match(/youtu\.be\/([A-Za-z0-9_-]{6,})/);
-  if (m1?.[1]) return m1[1];
-  const m2 = u.match(/[?&]v=([A-Za-z0-9_-]{6,})/);
-  if (m2?.[1]) return m2[1];
-  const m3 = u.match(/\/embed\/([A-Za-z0-9_-]{6,})/);
-  if (m3?.[1]) return m3[1];
-  if (/^[A-Za-z0-9_-]{6,}$/.test(u)) return u;
+  const value = safeText(url);
+  if (!value) return "";
+
+  const shortMatch = value.match(/youtu\.be\/([A-Za-z0-9_-]{6,})/);
+  if (shortMatch?.[1]) return shortMatch[1];
+
+  const queryMatch = value.match(/[?&]v=([A-Za-z0-9_-]{6,})/);
+  if (queryMatch?.[1]) return queryMatch[1];
+
+  const embedMatch = value.match(/\/embed\/([A-Za-z0-9_-]{6,})/);
+  if (embedMatch?.[1]) return embedMatch[1];
+
+  if (/^[A-Za-z0-9_-]{6,}$/.test(value)) return value;
   return "";
 }
 
-function setStatus(pillText, statusText, kind="info") {
+function setStatus(pillText, statusText, kind = "info") {
   const pill = $("#dataPill");
-  const txt = $("#statusText");
-  if (!pill || !txt) return;
+  const text = $("#statusText");
+  if (!pill || !text) return;
 
   pill.textContent = pillText;
-  txt.textContent = statusText;
-
-  const styles = {
-    ok:   { bg: "rgba(0,255,136,.10)", border: "rgba(0,255,136,.28)", fg: "rgba(0,255,136,.95)" },
-    warn: { bg: "rgba(201,162,39,.10)", border: "rgba(201,162,39,.28)", fg: "rgba(201,162,39,.95)" },
-    info: { bg: "rgba(245,247,250,.06)", border: "rgba(245,247,250,.18)", fg: "rgba(245,247,250,.85)" },
-  };
-  const s = styles[kind] || styles.info;
-  pill.style.background = s.bg;
-  pill.style.borderColor = s.border;
-  pill.style.color = s.fg;
+  text.textContent = statusText;
+  pill.dataset.kind = kind;
 }
 
 function buildGvizUrlByGid(gid) {
-  const tq = encodeURIComponent("select *");
-  return `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/gviz/tq?tqx=out:json&gid=${encodeURIComponent(gid)}&tq=${tq}`;
+  const query = encodeURIComponent("select *");
+  return `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/gviz/tq?tqx=out:json&gid=${encodeURIComponent(gid)}&tq=${query}`;
 }
 
 function parseGvizJson(text) {
   const head = text.slice(0, 250).toLowerCase();
+
   if (head.includes("<!doctype html") || head.includes("<html")) {
     throw new Error(
-      "Google returned HTML instead of data. Fix: Share the sheet as 'Anyone with link: Viewer' OR File → Publish to web."
+      "Google returned HTML instead of data. Share the sheet as 'Anyone with the link: Viewer' or publish it to the web."
     );
   }
+
   const match = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*?)\);\s*$/);
-  if (!match) throw new Error("Unexpected GViz response (not setResponse).");
+  if (!match) {
+    throw new Error("Unexpected Google Sheets response.");
+  }
+
   return JSON.parse(match[1]);
 }
 
 function gvizToObjects(gviz) {
-  const cols = gviz.table.cols.map(c => c.label || c.id);
-  return gviz.table.rows.map(r => {
-    const obj = {};
-    cols.forEach((name, idx) => {
-      const cell = r.c[idx];
-      obj[name] = cell ? (cell.f ?? cell.v) : "";
+  const columns = gviz.table.cols.map((column) => column.label || column.id);
+
+  return gviz.table.rows.map((row) => {
+    const object = {};
+
+    columns.forEach((name, index) => {
+      const cell = row.c[index];
+      object[name] = cell ? (cell.f ?? cell.v) : "";
     });
-    return obj;
+
+    return object;
   });
 }
 
-// ---------- UI ----------
+async function fetchSheetRows(gid) {
+  const response = await fetch(buildGvizUrlByGid(gid), { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error(`Google Sheets returned HTTP ${response.status}.`);
+  }
+
+  const text = await response.text();
+  return gvizToObjects(parseGvizJson(text));
+}
+
+function formatDateValue(value, includeTime = false) {
+  const raw = safeText(value);
+  if (!raw) return "Not announced";
+
+  let date;
+
+  const googleDateMatch = raw.match(/^Date\((\d+),(\d+),(\d+)(?:,(\d+),(\d+),(\d+))?\)$/);
+  if (googleDateMatch) {
+    const [, year, month, day, hour = "0", minute = "0", second = "0"] = googleDateMatch;
+    date = new Date(
+      Number(year),
+      Number(month),
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second)
+    );
+  } else {
+    date = new Date(raw);
+  }
+
+  if (Number.isNaN(date.getTime())) return raw;
+
+  const options = includeTime
+    ? {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      }
+    : {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      };
+
+  return new Intl.DateTimeFormat("en-GH", options).format(date);
+}
+
 let GAMES = [];
 let CURRENT_VIEW = "games";
+let arrivalTimer;
 
-function setView(name) {
+function viewElement(name) {
+  const map = {
+    games: $("#viewGames"),
+    featured: $("#viewFeatured"),
+    appointments: $("#viewAppointments"),
+  };
+
+  return map[name] || null;
+}
+
+function sectionLabel(name) {
+  const labels = {
+    games: "Games",
+    featured: "Featured Games",
+    appointments: "Queue",
+  };
+
+  return labels[name] || "Section";
+}
+
+function highlightArrival(element) {
+  if (!element) return;
+
+  clearTimeout(arrivalTimer);
+  $$(".is-arriving").forEach((item) => item.classList.remove("is-arriving"));
+
+  element.classList.remove("is-arriving");
+  void element.offsetWidth;
+  element.classList.add("is-arriving");
+
+  arrivalTimer = window.setTimeout(() => {
+    element.classList.remove("is-arriving");
+  }, 850);
+}
+
+function scrollToElement(element, updateHash = true) {
+  if (!element) return;
+
+  window.requestAnimationFrame(() => {
+    element.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "start",
+    });
+
+    highlightArrival(element);
+
+    if (updateHash && element.id) {
+      history.replaceState(null, "", `#${element.id}`);
+    }
+  });
+}
+
+function setView(name, options = {}) {
+  const { scroll = false, updateHash = true, focus = false } = options;
+  const target = viewElement(name);
+  if (!target) return;
+
   CURRENT_VIEW = name;
+
   $("#viewGames").hidden = name !== "games";
   $("#viewAppointments").hidden = name !== "appointments";
   $("#viewFeatured").hidden = name !== "featured";
 
-  $$("#navGames, #navAppointments, #navFeatured").forEach(btn => btn.classList.remove("active"));
-  if (name === "games") $("#navGames").classList.add("active");
-  if (name === "appointments") $("#navAppointments").classList.add("active");
-  if (name === "featured") $("#navFeatured").classList.add("active");
+  $$("#navGames, #navAppointments, #navFeatured, #navVisit").forEach((button) => {
+    button.classList.remove("active");
+  });
+
+  if (name === "games") $("#navGames")?.classList.add("active");
+  if (name === "appointments") $("#navAppointments")?.classList.add("active");
+  if (name === "featured") $("#navFeatured")?.classList.add("active");
+
+  const feedback = $("#navFeedback");
+  if (feedback) {
+    feedback.textContent = `${sectionLabel(name)} section opened.`;
+  }
+
+  if (scroll) {
+    scrollToElement(target, updateHash);
+  }
+
+  if (focus) {
+    const heading = target.querySelector("h2");
+    if (heading) {
+      heading.setAttribute("tabindex", "-1");
+      heading.focus({ preventScroll: true });
+    }
+  }
 }
 
 function renderFilters() {
-  // Optional improvement: split multi-platform cells into separate filter options
   const platforms = uniqSorted(
-    GAMES.flatMap(g => safeText(g.platform).split(/,|\/|\||•/g).map(x => x.trim())).filter(Boolean)
+    GAMES.flatMap((game) =>
+      safeText(game.platform)
+        .split(/,|\/|\||•/g)
+        .map((value) => value.trim())
+    )
   );
-  const genres = uniqSorted(GAMES.map(g => safeText(g.genre)));
 
-  const pf = $("#platformFilter");
-  const gf = $("#genreFilter");
+  const genres = uniqSorted(GAMES.map((game) => safeText(game.genre)));
 
-  const pfVal = pf.value;
-  const gfVal = gf.value;
+  const platformFilter = $("#platformFilter");
+  const genreFilter = $("#genreFilter");
 
-  pf.innerHTML = `<option value="">All platforms</option>` + platforms.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("");
-  gf.innerHTML = `<option value="">All genres</option>` + genres.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join("");
+  const currentPlatform = platformFilter.value;
+  const currentGenre = genreFilter.value;
 
-  pf.value = platforms.includes(pfVal) ? pfVal : "";
-  gf.value = genres.includes(gfVal) ? gfVal : "";
+  platformFilter.innerHTML =
+    `<option value="">All platforms</option>` +
+    platforms
+      .map((platform) => `<option value="${escapeHtml(platform)}">${escapeHtml(platform)}</option>`)
+      .join("");
+
+  genreFilter.innerHTML =
+    `<option value="">All genres</option>` +
+    genres.map((genre) => `<option value="${escapeHtml(genre)}">${escapeHtml(genre)}</option>`).join("");
+
+  platformFilter.value = platforms.includes(currentPlatform) ? currentPlatform : "";
+  genreFilter.value = genres.includes(currentGenre) ? currentGenre : "";
 }
 
 function gameCard(game) {
@@ -131,41 +297,60 @@ function gameCard(game) {
   const platformRaw = safeText(game.platform);
   const genre = escapeHtml(game.genre);
   const station = escapeHtml(game.station);
-  const thumb = safeText(game.thumbnail_url);
-  const hasTrailer = !!youtubeIdFromUrl(game.trailer_url);
+  const thumbnail = safeUrl(game.thumbnail_url);
+  const hasTrailer = Boolean(youtubeIdFromUrl(game.trailer_url));
 
   const platforms = platformRaw
-    ? platformRaw.split(/,|\/|\||•/g).map(p => p.trim()).filter(Boolean)
+    ? platformRaw
+        .split(/,|\/|\||•/g)
+        .map((platform) => platform.trim())
+        .filter(Boolean)
     : [];
 
+  const tag = safeText(game.tag).toLowerCase();
+
   const badges = [
-    ...platforms.map(p => `<span class="badge accent">${escapeHtml(p)}</span>`),
+    ...platforms.map((platform) => `<span class="badge accent">${escapeHtml(platform)}</span>`),
     genre ? `<span class="badge">${genre}</span>` : "",
-    station ? `<span class="badge">Station: ${station}</span>` : ""
-  ].filter(Boolean).join("");
+    station ? `<span class="badge">Station: ${station}</span>` : "",
+    tag === "new" ? `<span class="badge badge--new">NEW</span>` : "",
+    tag === "popular" ? `<span class="badge badge--popular">POPULAR</span>` : "",
+  ]
+    .filter(Boolean)
+    .join("");
 
   return `
     <article class="game">
       <div class="game-thumb">
         ${
-          thumb
-            ? `<img src="${escapeHtml(thumb)}" alt="${title} cover" loading="lazy" />`
+          thumbnail
+            ? `<img src="${escapeHtml(thumbnail)}" alt="${title} cover" loading="lazy" />`
             : `<div class="thumb-fallback">${title}</div>`
         }
       </div>
 
       <div class="game-info">
-        <div class="game-title">${title}</div>
+        <h3 class="game-title">${title}</h3>
         <div class="badges">${badges}</div>
 
         <div class="game-actions">
-          <button class="secondary" data-action="trailer"
-                  data-id="${escapeHtml(game.game_id || title)}"
-                  ${hasTrailer ? "" : "disabled"}>
+          <button
+            class="secondary"
+            data-action="trailer"
+            data-id="${escapeHtml(game.game_id || game.title)}"
+            type="button"
+            ${hasTrailer ? "" : "disabled"}
+          >
             🎬 Watch Clip
           </button>
-          <button class="primary" data-action="book" data-title="${title}">
-            📅 Book
+
+          <button
+            class="primary"
+            data-action="book"
+            data-title="${title}"
+            type="button"
+          >
+            Join Queue
           </button>
         </div>
       </div>
@@ -175,159 +360,422 @@ function gameCard(game) {
 
 function matchesPlatform(gamePlatformCell, selected) {
   if (!selected) return true;
-  const parts = safeText(gamePlatformCell)
+
+  const platforms = safeText(gamePlatformCell)
     .split(/,|\/|\||•/g)
-    .map(p => p.trim().toLowerCase())
+    .map((platform) => platform.trim().toLowerCase())
     .filter(Boolean);
-  return parts.includes(selected.toLowerCase());
+
+  return platforms.includes(selected.toLowerCase());
 }
 
 function renderGames() {
-  const q = safeText($("#searchInput").value).toLowerCase();
-  const pf = safeText($("#platformFilter").value);
-  const gf = safeText($("#genreFilter").value).toLowerCase();
+  const query = safeText($("#searchInput").value).toLowerCase();
+  const platform = safeText($("#platformFilter").value);
+  const genre = safeText($("#genreFilter").value).toLowerCase();
 
-  const filtered = GAMES.filter(g => {
-    if (!isActiveRow(g)) return false;
+  const filtered = GAMES.filter((game) => {
+    if (!isActiveRow(game)) return false;
 
-    const title = safeText(g.title).toLowerCase();
-    const platform = safeText(g.platform);
-    const genre = safeText(g.genre).toLowerCase();
+    const title = safeText(game.title).toLowerCase();
+    const gamePlatform = safeText(game.platform);
+    const gameGenre = safeText(game.genre).toLowerCase();
 
-    const matchesQ = !q || title.includes(q) || platform.toLowerCase().includes(q) || genre.includes(q);
-    const matchesP = matchesPlatform(platform, pf);
-    const matchesG = !gf || genre === gf;
+    const matchesQuery =
+      !query ||
+      title.includes(query) ||
+      gamePlatform.toLowerCase().includes(query) ||
+      gameGenre.includes(query);
 
-    return matchesQ && matchesP && matchesG;
+    const matchesSelectedPlatform = matchesPlatform(gamePlatform, platform);
+    const matchesGenre = !genre || gameGenre === genre;
+
+    return matchesQuery && matchesSelectedPlatform && matchesGenre;
   });
 
   const grid = $("#gamesGrid");
+
   grid.innerHTML = filtered.length
     ? filtered.map(gameCard).join("")
-    : `<div class="card"><b>No games found.</b><div class="muted">Try clearing filters or searching a different keyword.</div></div>`;
+    : `
+      <div class="emptyState">
+        <strong>No games found.</strong>
+        <p>Try clearing the filters or searching for a different keyword.</p>
+      </div>
+    `;
 }
 
 function renderFeatured() {
-  const featured = GAMES.filter(g => isActiveRow(g) && normalizeYesNo(g.featured));
+  const featured = GAMES.filter(
+    (game) => isActiveRow(game) && normalizeYesNo(game.featured)
+  );
+
   const grid = $("#featuredGrid");
+
   grid.innerHTML = featured.length
     ? featured.map(gameCard).join("")
-    : `<div class="card"><b>No featured games right now.</b><div class="muted">Set <b>featured</b> to Yes in your sheet.</div></div>`;
+    : `
+      <div class="emptyState">
+        <strong>No featured games right now.</strong>
+        <p>Set the featured column to Yes in the Games sheet.</p>
+      </div>
+    `;
+}
+
+function normalizeTournament(row) {
+  return {
+    tournament_id: safeText(row.tournament_id || row.id || row["Tournament ID"]),
+    title: safeText(row.title || row.tournament || row["Tournament Title"]),
+    game: safeText(row.game || row["Game"]),
+    date: safeText(row.date || row.tournament_date || row["Date"]),
+    time: safeText(row.time || row.start_time || row["Time"]),
+    registration_deadline: safeText(
+      row.registration_deadline ||
+      row.deadline ||
+      row["Registration Deadline"]
+    ),
+    poster_url: safeText(row.poster_url || row.poster || row["Poster URL"]),
+    signup_url: safeText(row.signup_url || row.signup || row["Signup URL"]),
+    location: safeText(row.location || row["Location"]),
+    status: safeText(row.status || row["Status"]),
+  };
+}
+
+function renderTournament(tournament) {
+  const status = $("#tournamentStatus");
+  const content = $("#tournamentContent");
+
+  if (!tournament) {
+    status.textContent = "No event";
+    content.innerHTML = `
+      <div class="tournamentEmpty">
+        No tournament is currently announced. Check back soon or follow Kickoff Gaming Lounge on TikTok.
+      </div>
+    `;
+    return;
+  }
+
+  const posterUrl = safeUrl(tournament.poster_url);
+  const signupUrl = safeUrl(tournament.signup_url);
+  const title = escapeHtml(tournament.title || "Kickoff Tournament");
+  const game = escapeHtml(tournament.game || "Game to be announced");
+  const location = escapeHtml(tournament.location || "Kickoff Gaming Lounge");
+  const dateText = formatDateValue(tournament.date);
+  const timeText = escapeHtml(tournament.time || "Time to be announced");
+  const deadlineText = formatDateValue(tournament.registration_deadline, true);
+
+  status.textContent = "Open";
+
+  content.innerHTML = `
+    ${
+      posterUrl
+        ? `
+          <a
+            class="tournamentPoster"
+            href="${escapeHtml(posterUrl)}"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Open the full ${title} poster"
+          >
+            <img
+              src="${escapeHtml(posterUrl)}"
+              alt="${title} tournament poster"
+              loading="lazy"
+            />
+          </a>
+        `
+        : ""
+    }
+
+    <div class="tournamentDetails">
+      <div>
+        <h3 class="tournamentName">${title}</h3>
+        <p class="tournamentGame">${game}</p>
+      </div>
+
+      <div class="tournamentMeta">
+        <div class="tournamentMeta__item">
+          <span class="tournamentMeta__label">Date</span>
+          <span class="tournamentMeta__value">${escapeHtml(dateText)}</span>
+        </div>
+
+        <div class="tournamentMeta__item">
+          <span class="tournamentMeta__label">Time</span>
+          <span class="tournamentMeta__value">${timeText}</span>
+        </div>
+
+        <div class="tournamentMeta__item">
+          <span class="tournamentMeta__label">Location</span>
+          <span class="tournamentMeta__value">${location}</span>
+        </div>
+      </div>
+
+      <div class="tournamentDeadline">
+        <strong>Registration deadline</strong>
+        <span>${escapeHtml(deadlineText)}</span>
+      </div>
+
+      <div class="tournamentActions">
+        ${
+          signupUrl
+            ? `
+              <a
+                class="btn btn--primary"
+                href="${escapeHtml(signupUrl)}"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Sign Up Now
+              </a>
+            `
+            : `<span class="btn btn--primary" aria-disabled="true">Signup link coming soon</span>`
+        }
+
+        ${
+          posterUrl
+            ? `
+              <a
+                class="btn btn--secondary"
+                href="${escapeHtml(posterUrl)}"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                View Full Poster
+              </a>
+            `
+            : ""
+        }
+      </div>
+    </div>
+  `;
+}
+
+async function refreshGames() {
+  const rows = await fetchSheetRows(CONFIG.gamesGid);
+
+  GAMES = rows
+    .map((row) => ({
+      game_id: safeText(row.game_id || row.id || row["Game ID"]),
+      title: safeText(row.title || row.game || row["Game Title"]),
+      platform: safeText(row.platform || row.console || row["Platform"]),
+      genre: safeText(row.genre || row["Genre"]),
+      trailer_url: safeText(row.trailer_url || row.trailer || row["Trailer URL"]),
+      thumbnail_url: safeText(row.thumbnail_url || row.thumbnail || row["Thumbnail URL"]),
+      station: safeText(row.station || row["Station"]),
+      status: safeText(row.status || row["Status"]),
+      featured: safeText(row.featured || row["Featured"]),
+      tag: safeText(row.tag || row["Tag"]),
+    }))
+    .filter((game) => game.title);
+
+  const activeCount = GAMES.filter(isActiveRow).length;
+  $("#gameCount").textContent = activeCount.toString();
+
+  renderFilters();
+  renderGames();
+  renderFeatured();
+
+  return activeCount;
+}
+
+async function refreshTournament() {
+  if (
+    !CONFIG.tournamentGid ||
+    CONFIG.tournamentGid === "REPLACE_WITH_TOURNAMENT_GID"
+  ) {
+    $("#tournamentStatus").textContent = "Setup needed";
+    $("#tournamentContent").innerHTML = `
+      <div class="tournamentEmpty">
+        Add your Tournament tab gid to <strong>CONFIG.tournamentGid</strong> in app.js.
+      </div>
+    `;
+    return;
+  }
+
+  try {
+    const rows = await fetchSheetRows(CONFIG.tournamentGid);
+    const activeTournament = rows
+      .map(normalizeTournament)
+      .find((row) => isActiveRow(row) && row.title);
+
+    renderTournament(activeTournament || null);
+  } catch (error) {
+    console.error("Tournament loading error:", error);
+    $("#tournamentStatus").textContent = "Unavailable";
+    $("#tournamentContent").innerHTML = `
+      <div class="tournamentEmpty">
+        The tournament information could not be loaded. Check the Tournament tab gid and sharing settings.
+      </div>
+    `;
+  }
 }
 
 async function refreshData() {
-  setStatus("Loading…", "Fetching the latest game list.", "info");
+  setStatus("Loading…", "Fetching the latest games and tournament information.", "info");
 
   try {
-    const url = buildGvizUrlByGid(CONFIG.gamesGid);
-    const res = await fetch(url, { cache: "no-store" });
-    const text = await res.text();
-    const gviz = parseGvizJson(text);
-    const rows = gvizToObjects(gviz);
+    const activeCount = await refreshGames();
+    await refreshTournament();
+    setStatus(
+      `Loaded ${activeCount} active`,
+      "Game list and tournament information were refreshed.",
+      "ok"
+    );
+  } catch (error) {
+    console.error(error);
+    setStatus(
+      "Error",
+      error.message || "The game list could not be loaded from Google Sheets.",
+      "warn"
+    );
 
-    GAMES = rows.map(r => ({
-      game_id: safeText(r.game_id || r.id || r["Game ID"]),
-      title: safeText(r.title || r.game || r["Game Title"]),
-      platform: safeText(r.platform || r.console || r["Platform"]),
-      genre: safeText(r.genre || r["Genre"]),
-      trailer_url: safeText(r.trailer_url || r.trailer || r["Trailer URL"]),
-      thumbnail_url: safeText(r.thumbnail_url || r.thumbnail || r["Thumbnail URL"]),
-      station: safeText(r.station || r["Station"]),
-      status: safeText(r.status || r["Status"]),
-      featured: safeText(r.featured || r["Featured"]),
-    }));
-
-    const activeCount = GAMES.filter(isActiveRow).length;
-
-    renderFilters();
-    renderGames();
-    renderFeatured();
-
-    setStatus(`Loaded ${activeCount} active`, "Game list updated from Google Sheets.", "ok");
-  } catch (err) {
-    console.error(err);
-    setStatus("Error", err.message || "Failed to load games from Google Sheets.", "warn");
+    await refreshTournament();
   }
 }
 
 function closeModal() {
   const modal = $("#trailerModal");
   if (!modal) return;
+
   modal.classList.remove("show");
   modal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("modalOpen");
   $("#videoWrap").innerHTML = "";
+}
+
+function openInitialHash() {
+  const hash = window.location.hash.replace("#", "");
+
+  if (["viewGames", "games"].includes(hash)) {
+    setView("games", { scroll: true, updateHash: false });
+    return;
+  }
+
+  if (["viewFeatured", "featured"].includes(hash)) {
+    setView("featured", { scroll: true, updateHash: false });
+    return;
+  }
+
+  if (["viewAppointments", "queue"].includes(hash)) {
+    setView("appointments", { scroll: true, updateHash: false });
+    return;
+  }
+
+  if (hash === "visit-us") {
+    scrollToElement($("#visit-us"), false);
+    $("#navVisit")?.classList.add("active");
+  }
 }
 
 function wireEvents() {
   $("#year").textContent = new Date().getFullYear();
 
-  $$("#navGames, #navAppointments, #navFeatured").forEach(btn => {
-    btn.addEventListener("click", () => setView(btn.dataset.view));
+  $$("#navGames, #navAppointments, #navFeatured").forEach((button) => {
+    button.addEventListener("click", () => {
+      setView(button.dataset.view, {
+        scroll: true,
+        updateHash: true,
+        focus: false,
+      });
+    });
   });
 
-  $("#refreshBtn").addEventListener("click", refreshData);
-  $("#searchInput").addEventListener("input", renderGames);
-  $("#platformFilter").addEventListener("change", renderGames);
-  $("#genreFilter").addEventListener("change", renderGames);
+  $("#navVisit")?.addEventListener("click", () => {
+    $$("#navGames, #navAppointments, #navFeatured, #navVisit").forEach((button) => {
+      button.classList.remove("active");
+    });
 
-  document.addEventListener("click", (e) => {
-    const btn = e.target.closest("button");
-    if (!btn) return;
+    $("#navVisit").classList.add("active");
+    $("#navFeedback").textContent = "Visit Us section opened.";
+    scrollToElement($("#visit-us"), true);
+  });
 
-    if (btn.dataset.action === "book") {
-      setView("appointments");
-      $("#joinQueueBtn")?.focus();
-      if (btn.dataset.title) {
-        $("#statusText").textContent = `Selected: ${safeText(btn.dataset.title)} (tell staff when checking in).`;
+  $("#refreshBtn")?.addEventListener("click", refreshData);
+  $("#searchInput")?.addEventListener("input", renderGames);
+  $("#platformFilter")?.addEventListener("change", renderGames);
+  $("#genreFilter")?.addEventListener("change", renderGames);
+
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button) return;
+
+    if (button.dataset.action === "book") {
+      setView("appointments", {
+        scroll: true,
+        updateHash: true,
+      });
+
+      if (button.dataset.title) {
+        $("#statusText").textContent =
+          `Selected: ${safeText(button.dataset.title)}. Tell staff when checking in.`;
       }
     }
 
-    if (btn.dataset.action === "trailer") {
-      const id = safeText(btn.dataset.id);
-      const game = GAMES.find(g => safeText(g.game_id) === id) || GAMES.find(g => safeText(g.title) === id);
+    if (button.dataset.action === "trailer") {
+      const id = safeText(button.dataset.id);
+
+      const game =
+        GAMES.find((item) => safeText(item.game_id) === id) ||
+        GAMES.find((item) => safeText(item.title) === id);
+
       if (!game) return;
 
-      const vid = youtubeIdFromUrl(game.trailer_url);
-      if (!vid) return;
+      const videoId = youtubeIdFromUrl(game.trailer_url);
+      if (!videoId) return;
 
       $("#modalTitle").textContent = `${safeText(game.title)} — Trailer`;
-      $("#modalMeta").textContent = `${safeText(game.platform)}${game.genre ? " • " + safeText(game.genre) : ""}`;
-      $("#videoWrap").innerHTML =
-        `<iframe src="https://www.youtube.com/embed/${vid}?autoplay=1&mute=1&rel=0&modestbranding=1"
-          allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
+      $("#modalMeta").textContent =
+        `${safeText(game.platform)}${game.genre ? ` • ${safeText(game.genre)}` : ""}`;
+
+      $("#videoWrap").innerHTML = `
+        <iframe
+          src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0&modestbranding=1"
+          title="${escapeHtml(game.title)} trailer"
+          allow="autoplay; encrypted-media; picture-in-picture"
+          allowfullscreen
+        ></iframe>
+      `;
 
       const modal = $("#trailerModal");
       modal.classList.add("show");
       modal.setAttribute("aria-hidden", "false");
+      document.body.classList.add("modalOpen");
+      modal.querySelector(".modal__dialog")?.focus();
     }
   });
 
   $("#modalBackdrop")?.addEventListener("click", closeModal);
   $("#closeModalBtn")?.addEventListener("click", closeModal);
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeModal();
+  });
 
   $("#joinQueueBtn")?.addEventListener("click", () => {
     const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-    const nums = "23456789";
-    const pick = (set) => set[Math.floor(Math.random()*set.length)];
-    const code = `${pick(letters)}${pick(letters)}-${pick(nums)}${pick(nums)}${pick(nums)}`;
+    const numbers = "23456789";
+    const pick = (characters) =>
+      characters[Math.floor(Math.random() * characters.length)];
+
+    const code =
+      `${pick(letters)}${pick(letters)}-` +
+      `${pick(numbers)}${pick(numbers)}${pick(numbers)}`;
 
     $("#slipCode").textContent = code;
-    $("#slipTimestamp").textContent = new Date().toLocaleString();
+    $("#slipTimestamp").textContent = new Date().toLocaleString("en-GH");
     $("#queueSlip").hidden = false;
+
+    $("#queueSlip").scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "nearest",
+    });
   });
 
-  $("#bookBtn")?.addEventListener("click", () => {
-    alert("Reserve-a-time is coming soon. For now, join the queue and staff will assign a station.");
-  });
-
-  $("#aboutLink")?.addEventListener("click", (e) => {
-    e.preventDefault();
-    alert("Kickoff Game Hub: Browse games, watch clips, and join the queue. Updates are managed in a Google Sheet.");
-  });
+  window.addEventListener("hashchange", openInitialHash);
 }
 
-// ---------- Start ----------
 wireEvents();
 setView("games");
-refreshData();
+refreshData().finally(() => {
+  window.setTimeout(openInitialHash, 100);
+});
