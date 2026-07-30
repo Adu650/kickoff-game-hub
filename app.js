@@ -1,11 +1,11 @@
 // Kickoff Game Hub — Google Sheets loader
 // Games tab gid: 528392995
-// IMPORTANT: Replace REPLACE_WITH_TOURNAMENT_GID with the gid from your Tournament tab.
+// The Tournament tab is loaded by its sheet name from the same spreadsheet.
 
 const CONFIG = {
   sheetId: "13rkxqr7sohPeexiygv0dBMFV63ElDb2J",
   gamesGid: "528392995",
-  tournamentGid: "REPLACE_WITH_TOURNAMENT_GID",
+  tournamentSheetName: "Tournament",
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -51,6 +51,33 @@ function safeUrl(value) {
   }
 }
 
+function normalizeImageUrl(value) {
+  const original = safeText(value);
+  if (!original) return "";
+
+  // Convert GitHub file-page links into raw image links.
+  const githubBlob = original.match(
+    /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/i
+  );
+  if (githubBlob) {
+    const [, owner, repo, branch, path] = githubBlob;
+    return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
+  }
+
+  // Convert common Google Drive sharing links into direct-view image links.
+  const driveFile = original.match(/drive\.google\.com\/file\/d\/([^/]+)/i);
+  if (driveFile?.[1]) {
+    return `https://drive.google.com/uc?export=view&id=${driveFile[1]}`;
+  }
+
+  const driveId = original.match(/[?&]id=([^&]+)/i);
+  if (original.includes("drive.google.com") && driveId?.[1]) {
+    return `https://drive.google.com/uc?export=view&id=${driveId[1]}`;
+  }
+
+  return safeUrl(original);
+}
+
 function youtubeIdFromUrl(url) {
   const value = safeText(url);
   if (!value) return "";
@@ -81,6 +108,11 @@ function setStatus(pillText, statusText, kind = "info") {
 function buildGvizUrlByGid(gid) {
   const query = encodeURIComponent("select *");
   return `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/gviz/tq?tqx=out:json&gid=${encodeURIComponent(gid)}&tq=${query}`;
+}
+
+function buildGvizUrlBySheetName(sheetName) {
+  const query = encodeURIComponent("select *");
+  return `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&tq=${query}`;
 }
 
 function parseGvizJson(text) {
@@ -115,8 +147,8 @@ function gvizToObjects(gviz) {
   });
 }
 
-async function fetchSheetRows(gid) {
-  const response = await fetch(buildGvizUrlByGid(gid), { cache: "no-store" });
+async function fetchRowsFromUrl(url) {
+  const response = await fetch(url, { cache: "no-store" });
 
   if (!response.ok) {
     throw new Error(`Google Sheets returned HTTP ${response.status}.`);
@@ -124,6 +156,14 @@ async function fetchSheetRows(gid) {
 
   const text = await response.text();
   return gvizToObjects(parseGvizJson(text));
+}
+
+async function fetchSheetRows(gid) {
+  return fetchRowsFromUrl(buildGvizUrlByGid(gid));
+}
+
+async function fetchSheetRowsByName(sheetName) {
+  return fetchRowsFromUrl(buildGvizUrlBySheetName(sheetName));
 }
 
 function formatDateValue(value, includeTime = false) {
@@ -297,7 +337,7 @@ function gameCard(game) {
   const platformRaw = safeText(game.platform);
   const genre = escapeHtml(game.genre);
   const station = escapeHtml(game.station);
-  const thumbnail = safeUrl(game.thumbnail_url);
+  const thumbnail = normalizeImageUrl(game.thumbnail_url);
   const hasTrailer = Boolean(youtubeIdFromUrl(game.trailer_url));
 
   const platforms = platformRaw
@@ -324,7 +364,13 @@ function gameCard(game) {
       <div class="game-thumb">
         ${
           thumbnail
-            ? `<img src="${escapeHtml(thumbnail)}" alt="${title} cover" loading="lazy" />`
+            ? `<img
+                src="${escapeHtml(thumbnail)}"
+                alt="${title} cover"
+                loading="lazy"
+                referrerpolicy="no-referrer"
+                onerror="this.style.display='none';this.nextElementSibling.hidden=false;"
+              /><div class="thumb-fallback" hidden>${title}</div>`
             : `<div class="thumb-fallback">${title}</div>`
         }
       </div>
@@ -455,7 +501,7 @@ function renderTournament(tournament) {
     return;
   }
 
-  const posterUrl = safeUrl(tournament.poster_url);
+  const posterUrl = normalizeImageUrl(tournament.poster_url);
   const signupUrl = safeUrl(tournament.signup_url);
   const title = escapeHtml(tournament.title || "Kickoff Tournament");
   const game = escapeHtml(tournament.game || "Game to be announced");
@@ -560,7 +606,19 @@ async function refreshGames() {
       platform: safeText(row.platform || row.console || row["Platform"]),
       genre: safeText(row.genre || row["Genre"]),
       trailer_url: safeText(row.trailer_url || row.trailer || row["Trailer URL"]),
-      thumbnail_url: safeText(row.thumbnail_url || row.thumbnail || row["Thumbnail URL"]),
+      thumbnail_url: safeText(
+        row.thumbnail_url ||
+        row.thumbnail ||
+        row.image_url ||
+        row.cover_url ||
+        row.image ||
+        row.photo ||
+        row["Thumbnail URL"] ||
+        row["Image URL"] ||
+        row["Cover URL"] ||
+        row["Image"] ||
+        row["Photo"]
+      ),
       station: safeText(row.station || row["Station"]),
       status: safeText(row.status || row["Status"]),
       featured: safeText(row.featured || row["Featured"]),
@@ -579,21 +637,8 @@ async function refreshGames() {
 }
 
 async function refreshTournament() {
-  if (
-    !CONFIG.tournamentGid ||
-    CONFIG.tournamentGid === "REPLACE_WITH_TOURNAMENT_GID"
-  ) {
-    $("#tournamentStatus").textContent = "Setup needed";
-    $("#tournamentContent").innerHTML = `
-      <div class="tournamentEmpty">
-        Add your Tournament tab gid to <strong>CONFIG.tournamentGid</strong> in app.js.
-      </div>
-    `;
-    return;
-  }
-
   try {
-    const rows = await fetchSheetRows(CONFIG.tournamentGid);
+    const rows = await fetchSheetRowsByName(CONFIG.tournamentSheetName);
     const activeTournament = rows
       .map(normalizeTournament)
       .find((row) => isActiveRow(row) && row.title);
