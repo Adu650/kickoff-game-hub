@@ -513,26 +513,6 @@ function renderTournament(tournament) {
   status.textContent = "Open";
 
   content.innerHTML = `
-    ${
-      posterUrl
-        ? `
-          <a
-            class="tournamentPoster"
-            href="${escapeHtml(posterUrl)}"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Open the full ${title} poster"
-          >
-            <img
-              src="${escapeHtml(posterUrl)}"
-              alt="${title} tournament poster"
-              loading="lazy"
-            />
-          </a>
-        `
-        : ""
-    }
-
     <div class="tournamentDetails">
       <div>
         <h3 class="tournamentName">${title}</h3>
@@ -561,7 +541,7 @@ function renderTournament(tournament) {
         <span>${escapeHtml(deadlineText)}</span>
       </div>
 
-      <div class="tournamentActions">
+      <div class="tournamentActions${posterUrl && signupUrl ? "" : " tournamentActions--single"}">
         ${
           signupUrl
             ? `
